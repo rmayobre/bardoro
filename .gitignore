@@ -35,3 +35,14 @@ glossaries/*
 # Dart/Flutter
 .dart_tool/
 build/
+
+# Embedded-engine spikes: models, reference data and generated runner folders are never committed
+.spike-venv/
+spike-ref/
+spike-out/
+/assets/
+*.onnx
+spikes/s1_onnx/linux/
+spikes/s1_onnx/macos/
+spikes/s1_onnx/windows/
+spikes/s1_onnx/.metadata

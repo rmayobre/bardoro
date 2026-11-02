@@ -1,0 +1,17 @@
+name: spike_s1_onnx
+description: Spikes S1 and S2 from docs/SPIKES.md - run the Kokoro ONNX model through flutter_onnxruntime and time it.
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.12.2
+dependencies:
+  archive: ^4.0.0
+  flutter:
+    sdk: flutter
+  flutter_onnxruntime: ^1.9.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true

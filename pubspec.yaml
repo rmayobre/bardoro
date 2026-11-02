@@ -7,3 +7,4 @@ workspace:
   - packages/bardoro_core
   - packages/bardoro_kokoro_local
   - app
+  - spikes/s1_onnx

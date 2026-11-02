@@ -1,0 +1,6 @@
+# comment
+Urza = Urz-uh   # trailing
+Mishra	Mish
+bad line
+Spaced Out =  yes  
+=nokey

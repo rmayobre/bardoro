@@ -1,5 +1,6 @@
 # Any ebook, not just those in books/ (copyrighted, and easy to drop in the wrong folder)
 *.epub
+!packages/bardoro_core/test/golden/*.epub
 *.mobi
 *.azw3
 

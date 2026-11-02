@@ -12,6 +12,18 @@ jobs:
       - run: dart analyze
       - run: cd packages/bardoro_core && dart test
       - run: cd app && flutter test
+  interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pip install -r tools/requirements.txt
+      - run: flutter pub get
+      - run: tests/interop_test.sh
   python-smoke:
     runs-on: ubuntu-latest
     steps:

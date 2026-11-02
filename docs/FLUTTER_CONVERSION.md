@@ -4,6 +4,8 @@ A working plan for turning the Bardoro Python/Bash toolkit (epub → Kokoro TTS 
 
 Everything here is derived from the repo as it stands (`tools/*.py`, `tools/make-audiobook.sh`, `voices/`, `glossaries/`, `tests/`, `AGENTS.md`). Where a statement is a recommendation rather than something read from the code, it says so. Package names are suggestions to evaluate on pub.dev, not pinned choices.
 
+**Revision 3: implementation notes (Phases 0 to 2).** Phases 0 to 2 are built; where the Python code disagreed with this document, the code won and the text below was corrected. The corrections are collected in *Appendix G* at the end. Layout change: the Flutter app is `app/` (package `bardoro`), not `apps/bardoro_app`, and these docs live in `docs/`.
+
 **Revision 2: embedded Kokoro.** The app is now planned to run Kokoro **locally inside the app** (ONNX model + phonemizer), with no server, Docker or Python. §6.5 defines a `TtsEngine` interface (the old HTTP client becomes one engine), §6.5b covers the embedded engine, and §11 gains an early de-risking spike phase. The embedded-engine material rests on external documentation (model cards, package pages), listed with sources in Appendix F. **None of the embedded-engine code or package behavior has been run or tested**, so treat the spike phase as mandatory, not optional.
 
 ---
@@ -284,7 +286,8 @@ Run extraction in `Isolate.run` so large books don't jank the UI.
 
 **Traps.**
 
-- ebooklib is called with `ignore_ncx: True`, so TOC titles come from the EPUB 3 `nav` document, not the legacy NCX. Check on your real books whether any rely on NCX-only TOCs. Falling back to the NCX when there's no nav is a safe improvement but a parity break; decide deliberately.
+- ebooklib is called with `ignore_ncx: True`, which means "prefer the EPUB 3 `nav` document", **not** "never read the NCX": read from ebooklib 0.20's source, it parses the NCX when the epub has no nav document (the spine's `toc` attribute names it). The Dart reader does the same, so there is nothing to decide here; `ncx_only.epub` in the golden fixtures covers it. (An epub whose nav has no `<nav epub:type="toc">` makes ebooklib raise; the Dart reader treats that as an empty table of contents.)
+- ebooklib re-serialises each `application/xhtml+xml` item with only the **children of `<body>`**: `<head>` text and any text directly inside `<body>` before its first child element never reach BeautifulSoup. The Dart reader reproduces that. It parses with the HTML5 parser (`package:html`), BeautifulSoup used `html.parser`; they differ on malformed markup such as a `<p>` nested in a `<p>`, which no real epub in `books/` or the fixtures contains.
 - Python's `get_text(" ", strip=True)` joins text nodes with spaces and strips each. `package:html`'s `element.text` does not, so normalize whitespace yourself and test against golden output.
 - `str.title()` in Python has a quirk (`"DON'T".title()` is `"Don'T"`; I checked). Don't copy the quirk. Write a clean title-casing function and accept the tiny diff in the rare all-caps-with-apostrophe title.
 - `re.split(pattern, s, maxsplit=1)` has no direct Dart equivalent. Use `firstMatch` and `substring`.
@@ -316,6 +319,8 @@ String applyPronunciations(String text, Map<String, String> table, [Map<String, 
 ```
 
 Compile the regex once per run, not once per chapter. Verify lookbehind works on all three desktop targets with a unit test.
+
+**As built (`PronunciationApplier`).** The single `(?<![\p{L}\p{N}_])` / `(?![\p{L}\p{N}_])` pair above is *not* equivalent to Python's `\b` for entries that start or end with punctuation (`St.`, `-dash`): Python needs a *word* character beside such an edge. The class therefore anchors each alternative on its own first and last character (`isPyWordRune`), which reproduces `\b` exactly (golden test `applyPronunciations`). Sorting is by code points, and the table is compiled once per run.
 
 **Roman numerals.** Only II–XX (a lone I, V or X is never touched). The rule is based on the single word before the numeral:
 
@@ -366,7 +371,7 @@ List<String> chunkText(String text, {int limit = 2500}) {
 }
 ```
 
-Two notes. Python's `len` counts code points and Dart's `String.length` counts UTF-16 units, so for exact golden parity on text with emoji or other astral characters use `runes.length`. And a single sentence longer than the limit is never split (in Python either); consider a hard-split fallback as an improvement.
+As built, `chunkText` counts code points (`cpLen`) and splits sentences with a hand-written loop over `(?<=[.!?])\s+` where `\s` is Python's whitespace set (it includes U+001C to U+001F and U+0085, and not U+FEFF, unlike Dart's `\s`). Two notes. Python's `len` counts code points and Dart's `String.length` counts UTF-16 units, so for exact golden parity on text with emoji or other astral characters use `runes.length`. And a single sentence longer than the limit is never split (in Python either); consider a hard-split fallback as an improvement.
 
 ### 6.3 Pronunciation files and glossaries (`load_pronunciations`)
 
@@ -406,6 +411,8 @@ PronunciationTable layered(List<PronunciationTable> inOrder) =>
 4. Keep words that are not in the extra `--known` list and that pyspellchecker reports as unknown.
 5. Drop words seen fewer than `--min-count` (default 2). Sort by count descending.
 6. Write `word,count,pronunciation` with a blank third column.
+
+Two details found in the code: the document set is every `application/xhtml+xml` manifest item (the nav document included, in manifest order; only the children of `<body>` count, `<script>`/`<style>` text does not), and pyspellchecker's `unknown()` never reports a word longer than its longest dictionary word + 3 (48 letters) or one that Python's `float()` accepts (`inf`, `infinity`). `WordList.isUnknown` encodes both.
 
 **Dart design.** `UnknownWordFinder.find(EpubBook, {int minCount = 2, Set<String> known})` returning `List<WordCount>`. Load the dictionary once into a `Set<String>` (lowercase).
 
@@ -519,7 +526,7 @@ class KokoroHttpClient {
 }
 ```
 
-For cancellation, use `dio`'s `CancelToken` or close the client; the runner should check a cancel flag between chunks either way.
+As built: `package:http` only (no `dio`). `CancelToken` (in `audio/`) is checked between chunks and chapters; an in-flight request is abandoned (its result discarded) rather than aborted, and a running ffmpeg process is killed. The engine writes `<dest>.part` and renames it, so a killed run cannot leave a truncated chunk that the `size > 0` reuse rule would accept (Python writes the file directly, which can). `prepare()` makes no network call, to match the CLI; `testConnection()` does `GET /v1/audio/voices` for the Settings screen. `KokoroVoiceRejected` carries the hint separately from the message.
 
 ### 6.5b The embedded engine (`LocalOnnxEngine`)
 
@@ -766,6 +773,8 @@ class Failed extends PipelineEvent { const Failed(this.message, {this.hint}); fi
 
 **Logging.** Keep appending to `convert.log` in the same shape (`YYYY-MM-DD HH:MM:SS message`) so a user can open the file in either tool. Also stream the same lines to a collapsible log panel in the UI.
 
+**As built.** Extra events: `LogLine` (every log line, so the UI panel and `convert.log` cannot drift), `ChunkReused` and `Cancelled`. The log file also receives the lines Python only prints (the section list), and the work folder is created recursively. Files that ffmpeg writes (chapter FLACs, the `.m4b`) are written as `<stem>.part<ext>` (for example `chapter_01.part.flac`) and renamed on success, because Python writes them under their final name and a kill mid-write would leave a chapter that a rerun treats as finished. `voice_settings.json` is compared as `num`; the HTTP engine records exactly the CLI's six keys.
+
 **Cancel and resume.** Cancel between chunks and kill the running ffmpeg process. Because chapters and chunks are files on disk, "resume" needs no extra state: rerun and the runner skips what exists. Show a "Redo chapter" action that deletes `chapter_XX.flac` (new pronunciations only affect chapters generated afterwards, as the README says).
 
 **Concurrency.** The Python is strictly sequential, and the Kokoro server is the bottleneck. Keep it sequential in v1. Parallel chunk requests are a possible later optimization; verify it helps on your server before adding the complexity.
@@ -939,7 +948,7 @@ State that must survive restarts: the library is just a scan of `output/*/` plus
 
 ### 10.1 Golden-file parity (do this first)
 
-Add this tiny script next to the Python tools. It dumps what the Python pipeline produces for a given epub and glossary stack; I ran it against a small test epub and it works:
+`tools/dump_golden.py` now exists (below, unchanged). `packages/bardoro_core/test/golden/make_golden.py` builds small *synthetic* epubs (original text, so they can be committed), runs the real scripts over them and writes the JSON the Dart tests read; it also records `update_glossary.py` output, `load_pronunciations` tables, csv writer output and voice-resolution cases. Real books are compared without committing anything by `dart run tool/parity_check.dart --python .venv/bin/python book.epub [glossary ...]` (from `packages/bardoro_core`). Add this tiny script next to the Python tools. It dumps what the Python pipeline produces for a given epub and glossary stack; I ran it against a small test epub and it works:
 
 ```python
 #!/usr/bin/env python3
@@ -970,7 +979,7 @@ Generate goldens for 3 to 5 real epubs with varied structure (image-titled chapt
 
 ### 10.2 Unit tests (`bardoro_core`)
 
-- Section filtering: include/skip regexes, 3000-char threshold, title rules (heading, `Book I: Subtitle`, image alt, TOC fallback, numbering continuation, spoken title).
+- Section filtering (done in `epub_golden_test.dart` with synthetic epubs generated by `test/golden/make_golden.py`, plus `tool/parity_check.dart` against live Python on real books): include/skip regexes, 3000-char threshold, title rules (heading, `Book I: Subtitle`, image alt, TOC fallback, numbering continuation, spoken title).
 - `applyPronunciations`: whole-word, case-sensitive, longest-first (`Urza Planeswalker` beats `Urza`), Unicode boundaries, hit counts.
 - Roman numerals: `Part II` → `Part two`, `Menethil II` → `Menethil the Second`, lone `I`/`V`/`X` untouched, glossary override wins.
 - Pronunciation file loaders: each format, BOM, blank handling, `keepBlank`.
@@ -1017,6 +1026,8 @@ Wizard step gating (can't convert without words reviewed, engine ready, ffmpeg f
 | **5. Pronunciation Lab** | Quick test, batch render, review mode, apply/dry-run, playback. | A glossary can be reviewed by ear end to end and written back; decisions survive a restart. |
 | **6. Hardening and release** | Packaging per OS, ffmpeg detection/bundling decision, license compliance (notices screen, source links for bundled binaries, §8.1), error states, large-book performance (isolates), accessibility pass, docs. | Installable builds on all three OSes; a 500+ page book converts without UI stalls. |
 
+**Status (branch `flutter-port`):** Phases 0, 1 and 2 are done; Phase 0b needs real hardware and listening and has not been started. Verify with `dart analyze`, `cd packages/bardoro_core && dart test`, `tests/smoke_test.sh` and `tests/interop_test.sh`.
+
 Retire `tools/` Python only after Phase 3 parity, and keep `tools/skill/SKILL.md` for as long as the Python CLI is the thing the skill drives.
 
 ---
@@ -1038,6 +1049,22 @@ Retire `tools/` Python only after Phase 3 parity, and keep `tools/skill/SKILL.md
 13. **Model hosting.** Download from Hugging Face on first run (pinning file URLs and hashes), or let users supply files? Verify the exact URLs; I couldn't.
 
 ---
+
+## Appendix G: corrections found while building Phases 0 to 2
+
+| Where | Said | Code says | Resolution |
+|---|---|---|---|
+| §6.1 | NCX is never used with `ignore_ncx` | NCX is used when there is no nav document | Dart does the same; §6.1 fixed |
+| §6.1 / §6.4 | (silent) | ebooklib passes only `<body>` children of xhtml items to BeautifulSoup; the nav document counts as a document for the word finder | reproduced; §6.1 and §6.4 notes added |
+| §6.2 | one `(?<!\w)...(?!\w)` pair equals `\b` | not for entries that begin or end with punctuation | per-entry anchors; §6.2 note added |
+| §6.2 | Dart `\s` is fine | Python `\s` and `strip()` use a different whitespace set | `py_text.dart` reproduces Python's set |
+| §6.3 | (silent) | a CSV row with more fields than the header makes Python raise `AttributeError` (a list `.strip()`) | Dart throws a `FormatException` with the row number |
+| §6.4 | dictionary lookup only | `unknown()` skips words over 48 letters and `inf`/`infinity` | encoded in `WordList.isUnknown` |
+| §6.6 | `concatLine` mirrors Python | Python calls `Path.resolve()` (follows symlinks), Dart `File.absolute` does not | harmless for ffmpeg; noted |
+| §6.7 | write ffmpeg output directly | a kill leaves a "finished" chapter | `<stem>.part<ext>` then rename (improvement; the CLI can still finish such a book) |
+| §4.2 | `apps/bardoro_app` | template lives in `app/` | docs updated |
+| D5 | word list can be bundled | pyspellchecker's licence for the data is still unchecked | committed for parity; **check before release** (`THIRD_PARTY_NOTICES.md`) |
+| LICENSE | MIT (repo) | D14 says GPL-3.0-or-later | `LICENSE` replaced with the GPLv3 text; earlier commits remain MIT |
 
 ## Appendix A: Kokoro HTTP contract (as used by the optional HTTP engine)
 

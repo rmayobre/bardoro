@@ -1,0 +1,11 @@
+name: bardoro_kokoro_local
+description: Embedded Kokoro engine (ONNX) behind bardoro_core's TtsEngine. Skeleton only until the spikes pass.
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.12.2
+dependencies:
+  bardoro_core: any
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

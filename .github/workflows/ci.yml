@@ -1,0 +1,23 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  dart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: flutter pub get
+      - run: dart analyze
+      - run: cd packages/bardoro_core && dart test
+      - run: cd app && flutter test
+  python-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pip install -r tools/requirements.txt
+      - run: tests/smoke_test.sh

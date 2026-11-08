@@ -1026,7 +1026,7 @@ Wizard step gating (can't convert without words reviewed, engine ready, ffmpeg f
 | **5. Pronunciation Lab** | Quick test, batch render, review mode, apply/dry-run, playback. | A glossary can be reviewed by ear end to end and written back; decisions survive a restart. |
 | **6. Hardening and release** | Packaging per OS, ffmpeg detection/bundling decision, license compliance (notices screen, source links for bundled binaries, §8.1), error states, large-book performance (isolates), accessibility pass, docs. | Installable builds on all three OSes; a 500+ page book converts without UI stalls. |
 
-**Status (branch `flutter-port`):** Phases 0, 1 and 2 are done; Phase 0b needs real hardware and listening and has not been started. Verify with `dart analyze`, `cd packages/bardoro_core && dart test`, `tests/smoke_test.sh` and `tests/interop_test.sh`.
+**Status (branch `flutter-port`):** Phases 0, 1 and 2 are done, and Phase 3 (app shell + wizard) is built in `app/` on top of `packages/bardoro_services` (volley for isolates, zero_nads for structure); Glossaries/Words table editors (Phase 4) and the Pronunciation Lab (Phase 5) are not started, and the app has no model download or embedded engine yet; Phase 0b needs real hardware and listening and has not been started. Verify with `dart analyze`, `cd packages/bardoro_core && dart test`, `tests/smoke_test.sh` and `tests/interop_test.sh`.
 
 Retire `tools/` Python only after Phase 3 parity, and keep `tools/skill/SKILL.md` for as long as the Python CLI is the thing the skill drives.
 

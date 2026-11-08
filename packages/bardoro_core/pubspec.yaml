@@ -16,3 +16,8 @@ dependencies:
 dev_dependencies:
   lints: ^6.0.0
   test: ^1.25.0
+
+# Read by the Flutter tool when an app depends on this package, so the word list ships inside the app bundle.
+flutter:
+  assets:
+    - assets/dictionary/en_words.txt

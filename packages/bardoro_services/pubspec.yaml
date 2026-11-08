@@ -1,0 +1,15 @@
+name: bardoro_services
+description: Application services for Bardoro - library scan, epub analysis, settings and the isolate-backed conversion worker. Built on volley (concurrency) and zero_nads (structure).
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.12.2
+dependencies:
+  bardoro_core: any
+  path: ^1.9.0
+  volley: ^0.1.0
+  zero_nads: ^0.1.1
+dev_dependencies:
+  archive: ^4.0.0
+  lints: ^6.0.0
+  test: ^1.25.0

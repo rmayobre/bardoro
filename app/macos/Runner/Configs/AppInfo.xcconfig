@@ -8,7 +8,7 @@
 PRODUCT_NAME = Bardoro
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.bardoro
+PRODUCT_BUNDLE_IDENTIFIER = com.rmayobre.bardoro
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.rmayobre. All rights reserved.

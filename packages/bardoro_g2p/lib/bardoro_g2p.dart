@@ -5,8 +5,11 @@ library;
 
 export 'src/kokoro_mapper.dart';
 export 'src/lexicon.dart';
+export 'src/morphology.dart';
 export 'src/phone.dart';
 export 'src/rules/rule_engine.dart';
 export 'src/rules/rule_parser.dart';
+export 'src/stress.dart';
+export 'src/syllables.dart';
 export 'src/version.dart';
 export 'src/word_pipeline.dart';

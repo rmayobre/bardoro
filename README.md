@@ -334,9 +334,31 @@ Merges a book's pronunciations, or a staging glossary, into a shared series glos
 | `--dry-run` | Print the changes without writing. |
 | `--overwrite` | Let the book's entries replace existing glossary entries that differ. |
 
+## Desktop app
+
+`app/` is a Flutter desktop app (Linux, macOS, Windows) that does the same job with a GUI: add an epub, review the
+sections, fill in respellings, pick a voice, and convert, with progress, cancel and resume. It shares the workspace
+layout with the scripts (`books/`, `voices/`, `glossaries/`, `output/<slug>/`), so either tool can finish a book the
+other started.
+
+```bash
+flutter pub get
+cd app && flutter run -d linux        # or macos / windows
+```
+
+Set the Kokoro server URL and (if needed) the ffmpeg path under Settings. The workspace defaults to
+`~/Documents/Bardoro` and is seeded with the bundled voice profiles and glossaries on first run.
+
+The logic lives in local packages: `packages/bardoro_core` (pure-Dart pipeline), `packages/bardoro_services`
+(app services built on [volley](https://pub.dev/packages/volley) for isolates and
+[zero_nads](https://pub.dev/packages/zero_nads) for `Result`/`Task`/`Snapshot`) and `packages/bardoro_kokoro_local`
+(embedded engine, still a skeleton). See [app/README.md](app/README.md).
+
 ## Project layout
 
 ```
+app/              Flutter desktop app (UI and state only)
+packages/         bardoro_core, bardoro_services, bardoro_kokoro_local (Dart)
 tools/            the scripts above, requirements.txt, and a copy of the Claude skill (skill/SKILL.md)
 glossaries/       shared pronunciations per series (tracked in git)
 books/            your epubs (git-ignored)
@@ -360,6 +382,16 @@ tests/            smoke test and a fake Kokoro server
 
 ```bash
 tests/smoke_test.sh        # runs everything against a fake server; should end with ALL OK
+```
+
+Dart and Flutter (the workspace root runs `flutter pub get` for all packages):
+
+```bash
+dart analyze
+(cd packages/bardoro_core && dart test)
+(cd packages/bardoro_services && dart test)      # includes a real volley isolate run against a fake Kokoro
+(cd app && flutter test)
+(cd app && xvfb-run -a flutter test integration_test -d linux)   # the real app, end to end (needs ffmpeg)
 ```
 
 ## Using it with Claude

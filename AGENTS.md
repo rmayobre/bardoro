@@ -16,6 +16,11 @@ pronunciations for invented names. Pipeline per book:
 ## Layout
 
 ```
+app/                       Flutter desktop app (UI + state; logic is in packages/)
+packages/
+  bardoro_core/            pure-Dart pipeline (port of tools/), golden parity tests
+  bardoro_services/        settings, library, analysis (volley coroutine), conversion (volley actor), zero_nads
+  bardoro_kokoro_local/    embedded engine skeleton
 tools/
   epub_to_kokoro.py        main converter (resumable)
   find_unknown_words.py    unrecognised-word finder, exports .csv/.json/.py/.txt
@@ -67,6 +72,10 @@ title on purpose), runs both wrapper phases against a fake Kokoro server, and ch
 both a glossary and the book file) reach the server, three chapters and chapter markers in the `.m4b`, a rerun makes
 no new server calls, and the glossary update works. It must print `ALL OK`. Do not test against the real server
 unless the user asks, because full runs take a long time.
+
+For Dart and Flutter changes run `dart analyze`, `dart test` in `packages/bardoro_core` and `packages/bardoro_services`,
+and `flutter test` in `app/`. Keep logic out of widgets: it belongs in `packages/`, exposed as zero_nads
+`Task`/`Result`/`Snapshot`, with long-running work in volley isolates.
 
 ## Behaviours to preserve
 

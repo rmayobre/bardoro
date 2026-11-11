@@ -6,5 +6,6 @@ environment:
 workspace:
   - packages/bardoro_core
   - packages/bardoro_kokoro_local
+  - packages/bardoro_services
   - app
   - spikes/s1_onnx

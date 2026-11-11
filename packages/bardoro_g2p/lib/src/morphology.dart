@@ -17,7 +17,10 @@ class MorphResolver implements WordResolver {
   static const _voiceless = {'p', 't', 'k', 'f', 'θ', 's', 'ʃ', 'ʧ'};
 
   /// Same conventions as the lexicon (`ᵻz`, `ᵻd`, `ɪŋ`, `əɹ`, `ᵊl`).
-  static List<String> _plural(String last) =>
+  static List<String> _plural(String last) => inflectionS(last);
+
+  /// Phones of the plural / third-person / possessive `-s` after a stem ending in [last].
+  static List<String> inflectionS(String last) =>
       _sibilants.contains(last) ? ['ᵻ', 'z'] : (_voiceless.contains(last) ? ['s'] : ['z']);
 
   static List<String> _past(String last) =>

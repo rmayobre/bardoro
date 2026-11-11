@@ -1,0 +1,231 @@
+# Golden cases, "word => raw phones" before stress. Sections match "# --- name" in en_us.rules.
+# Edit only after reviewing the diff: these freeze rule behaviour and are not ground truth.
+
+# --- punctuation
+o'brien => ɑ b ɹ i n
+d'arc => d ɑ ɹ k
+
+# --- b
+lamb => l æ m
+knob => n ɑ b
+bubble => b ʌ b ə l
+climb => k l ɪ m
+
+# --- c
+bacchus => b æ k ʌ s
+city => s ɪ t i
+chrome => k ɹ O m
+check => ʧ ɛ k
+cyst => s ɪ s t
+accent => æ k s ɛ n t
+accord => æ k ɔ ɹ d
+ficus => f ɪ k ʌ s
+cacao => k A k æ ɑ
+mach => m æ ʧ
+bocce => b ɑ k s
+acquire => æ k u ɹ
+
+# --- d
+edge => ɛ ʤ
+badge => b æ ʤ
+dodge => d ɑ ʤ
+dad => d æ d
+fudgy => f ʌ ʤ i
+paddle => p æ d ə l
+
+# --- f
+off => ɑ f
+fox => f ɑ k s
+
+# --- g
+ghost => ɡ ɑ s t
+night => n I t
+sign => s ɪ n
+hang => h æ ŋ
+range => ɹ æ n ʤ
+angel => æ n ʤ ɛ l
+get => ʤ ɛ t
+gym => ʤ ɪ m
+gnome => n O m
+egg => ɛ ɡ
+burgh => b ɜ ɹ
+ought => W t
+aghast => æ ɡ æ s t
+angus => æ ŋ ɡ ʌ s
+bangs => b æ ŋ s
+finger => f ɪ n ʤ ɜ ɹ
+
+# --- h
+oh => ɑ
+hat => h æ t
+hope => h O p
+
+# --- j
+jade => ʤ A d
+jojo => ʤ ɑ ʤ ɑ
+
+# --- k
+knight => n I t
+khan => k æ n
+kick => k ɪ k
+
+# --- l
+bottle => b ɑ t ə l
+table => t A b ə l
+ball => b ɔ l
+lap => l æ p
+hill => h ɪ l
+
+# --- m
+lamp => l æ m p
+hammer => h æ m ɜ ɹ
+
+# --- n
+bank => b æ ŋ k
+sphinx => s f ɪ ŋ k s
+nine => n I n
+inn => ɪ n
+
+# --- p
+phone => f O n
+psalm => s æ l m
+pneuma => n u m ə
+pop => p ɑ p
+apple => æ p ə l
+
+# --- q
+queen => k w i n
+quest => k w ɛ s t
+qat => k æ t
+
+# --- r
+rhyme => ɹ ɪ m
+rhino => ɹ ɪ n ɑ
+far => f ɑ ɹ
+berry => b ɛ ɹ i
+carry => k æ ɹ i
+sorry => s ɔ ɹ i
+mirror => m ɪ ɹ ɔ ɹ
+hurry => h ɜ ɹ i
+
+# --- s
+school => s k u l
+mission => m ɪ ʃ ə n
+vision => v ɪ ʒ ə n
+measure => m i ʒ ə ɹ
+treasure => t ɹ i ʒ ə ɹ
+rose => ɹ O z
+easy => i z i
+sash => s æ ʃ
+sun => s ʌ n
+scene => s ɛ n
+mass => m æ s
+
+# --- t
+watch => w æ ʧ
+question => k w ɛ s ʧ ə n
+nation => n A ʃ ə n
+nature => n A ʧ ə ɹ
+thin => θ ɪ n
+tot => t ɑ t
+suspicious => s ʌ s p ɪ ʃ ə s
+ambitious => æ m b ɪ ʃ ə s
+
+# --- v
+vivid => v ɪ v ɪ d
+savvy => s æ v i
+
+# --- w
+wrap => ɹ æ p
+which => w ɪ ʧ
+wolf => w ɑ l f
+
+# --- x
+xena => z ɛ n ə
+box => b ɑ k s
+
+# --- z
+zebra => z ɛ b ɹ ə
+buzz => b ʌ z
+zhivago => ʒ ɪ v A ɡ ɑ
+
+# --- a
+barrow => b æ ɹ O
+name => n A m
+cap => k æ p
+ate => A t
+war => w ɔ ɹ
+far => f ɑ ɹ
+car => k ɑ ɹ
+all => ɔ l
+table => t A b ə l
+caught => k ɔ t
+law => l ɔ
+play => p l A
+rain => ɹ A n
+ae => i
+audio => ɔ d ɪ ɑ
+idea => ɪ d i
+
+# --- e
+vein => v A n
+meyer => m A ɜ ɹ
+beau => b O
+dear => d ɪ ɹ
+deer => d ɪ ɹ
+beam => b i m
+bead => b i d
+eight => A t
+few => f u
+key => k i
+her => h ɜ ɹ
+heart => h ɪ ɹ t
+be => b i
+me => m i
+bed => b ɛ d
+they => θ i
+
+# --- i
+movie => m ɑ v i
+night => n I t
+pie => p I
+tie => t I
+ride => ɹ I d
+bit => b ɪ t
+sir => s ɜ ɹ
+title => t I t ə l
+city => s ɪ t i
+macaroni => m A k ɑ ɹ ɑ n i
+
+# --- o
+town => t W n
+boat => b O t
+boil => b Y l
+toy => t Y
+book => b u k
+out => W t
+hope => h O p
+hot => h ɑ t
+noble => n O b ə l
+toe => t O
+snow => s n O
+how => h O
+
+# --- u
+value => v A l u
+clue => k l u
+buy => b I
+fruit => f ɹ u t
+mule => m u l
+burn => b ɜ ɹ n
+fun => f ʌ n
+cube => k u b
+menu => m ɛ n u
+
+# --- y
+yes => j ɛ s
+sky => s k I
+gym => ʤ ɪ m
+happy => h æ p i
+myth => m ɪ θ
+lady => l A d i

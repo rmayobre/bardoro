@@ -1,0 +1,220 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# English (US) letter-to-sound rules for out-of-vocabulary words.
+# Syntax and semantics: see lib/src/rules/rule_parser.dart.
+# Application order: longest grapheme first, then file order, so within one grapheme length the
+# specific contexts must come before the general ones. Output phones use the Kokoro alphabet
+# (A=eɪ I=aɪ O=oʊ W=aʊ Y=ɔɪ ʧ=tʃ ʤ=dʒ ɹ=r ɡ=g). Rules never write stress: the stress assigner
+# adds it and reduces unstressed vowels afterwards.
+#
+# These are general spelling-to-sound heuristics, not per-word data. Words that break them belong
+# in the lexicon or in a glossary respelling, never in this file.
+
+class V = a e i o u y
+class C = b c d f g h j k l m n p q r s t v w x z
+class F = e i y
+class T = k q
+
+# --- punctuation
+(') =>
+
+# --- b
+(bb)              => b
+@V m (b) $        =>
+(b)               => b
+
+# --- c
+(cch)             => k
+(cc) @F           => k s
+(cc)              => k
+(cious) $         => ʃ ə s
+^ (ch) @C         => k
+(ch)              => ʧ
+(ck)              => k
+(cq)              => k
+(c) @F            => s
+(c)               => k
+
+# --- d
+(dge)             => ʤ
+(dg) @F           => ʤ
+(dd)              => d
+(d)               => d
+
+# --- f
+(ff)              => f
+(f)               => f
+
+# --- g
+(gg)              => ɡ
+^ (gh)            => ɡ
+(gh) $            =>
+(gh) t            =>
+(gh)              => ɡ
+^ (gn)            => n
+(gn) $            => n
+(ng) $            => ŋ
+(ng) @F           => n ʤ
+(ng) @V           => ŋ ɡ
+(ng)              => ŋ
+(g) @F            => ʤ
+(g)               => ɡ
+
+# --- h
+@V (h) $          =>
+(h)               => h
+
+# --- j
+(j)               => ʤ
+
+# --- k
+^ (kn)            => n
+(kh)              => k
+(k)               => k
+
+# --- l
+@C (le) $         => ə l
+(ll)              => l
+(l)               => l
+
+# --- m
+(mm)              => m
+(m)               => m
+
+# --- n
+(nn)              => n
+(n) k             => ŋ
+(n) x             => ŋ
+(n)               => n
+
+# --- p
+(pp)              => p
+(ph)              => f
+^ (ps)            => s
+^ (pn)            => n
+(p)               => p
+
+# --- q
+(qu)              => k w
+(q)               => k
+
+# --- r
+^ (rh)            => ɹ
+(r)               => ɹ
+
+# --- s
+^ (sch)           => s k
+(ssion) $         => ʃ ə n
+(sion) $          => ʒ ə n
+(sure) $          => ʒ ə ɹ
+(ss)              => s
+(sh)              => ʃ
+(sc) @F           => s
+@V (s) @V         => z
+(s)               => s
+
+# --- t
+(tch)             => ʧ
+s (tion) $        => ʧ ə n
+(tion) $          => ʃ ə n
+(tious) $         => ʃ ə s
+(ture) $          => ʧ ə ɹ
+(th)              => θ
+(tt)              => t
+(t)               => t
+
+# --- v
+(vv)              => v
+(v)               => v
+
+# --- w
+^ (wr)            => ɹ
+(wh)              => w
+(w)               => w
+
+# --- x
+^ (x)             => z
+(x)               => k s
+
+# --- z
+(zh)              => ʒ
+(zz)              => z
+(z)               => z
+
+# --- a
+(augh)            => ɔ
+(au)              => ɔ
+(aw)              => ɔ
+(ay)              => A
+(ai)              => A
+(ae)              => i
+(war)             => w ɔ ɹ
+(arr)             => æ ɹ
+(ar)              => ɑ ɹ
+(all)             => ɔ l
+(a) @C l e $      => A
+(a) @C e $        => A
+(a) @C @V         => A
+(a) $             => ə
+(a)               => æ
+
+# --- e
+(eau)             => O
+(eer)             => ɪ ɹ
+(ear)             => ɪ ɹ
+(ee)              => i
+(ea)              => i
+(ei)              => A
+(eigh)            => A
+(ew)              => u
+(eu)              => u
+(ey) $            => i
+(ey)              => A
+(err)             => ɛ ɹ
+(er)              => ɜ ɹ
+^ @C* (e) $       => i
+@C (e) $          =>
+(e)               => ɛ
+
+# --- i
+(igh)             => I
+^ @C* (ie) $      => I
+(ie) $            => i
+(ie)              => i
+(irr)             => ɪ ɹ
+(ir)              => ɜ ɹ
+(i) @C l e $      => I
+(i) @C e $        => I
+(i) $             => i
+(i)               => ɪ
+
+# --- o
+(oa)              => O
+(oi)              => Y
+(oy)              => Y
+(oo)              => u
+(ou)              => W
+(ow) $            => O
+(ow)              => W
+(orr)             => ɔ ɹ
+(or)              => ɔ ɹ
+(o) @C l e $      => O
+(o) @C e $        => O
+(oe) $            => O
+(o)               => ɑ
+
+# --- u
+(ui)              => u
+(uy)              => I
+(ue) $            => u
+(urr)             => ɜ ɹ
+(ur)              => ɜ ɹ
+(u) @C e $        => u
+(u) $             => u
+(u)               => ʌ
+
+# --- y
+^ (y) @V          => j
+^ @C* (y) $       => I
+@C (y) $          => i
+(y)               => ɪ

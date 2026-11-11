@@ -14,6 +14,14 @@ Context transferred from a design chat into this repo so Claude Code can continu
 - Tests assert no lexicon symbol and no internal phone is missing from the vocab.
 - **Open:** misaki does not document the upstream origin of its entries; only the repo-level Apache-2.0 was verified (`assets/NOTICE`).
 
+**Step 2 (rule DSL parser, RuleEngine, goldens): done.** Files: `lib/src/rules/rule_parser.dart`, `rule_engine.dart`, `lib/src/word_pipeline.dart` (types and `LexiconResolver`), `assets/en_us.rules` (150 rules), `test/golden/rules_golden.txt` (one `# --- section` per rule-file section), `test/rules_test.dart`.
+- **Fixed from the sketch:** `RuleSet` is now immutable and built without mutating its input (stable ordering via explicit file position; a test checks the input list is untouched and candidate lists are unmodifiable). Anchors: `^` is only legal in the left context and `$` only in the right (parse error otherwise); left contexts compile to `(?:...)$` against the text before the grapheme, right contexts are matched with `matchAsPrefix` at the grapheme's end, so there is no per-rule substring of the tail. Classes expand to `[chars]`; `@NAME` is resolved per whitespace-separated token. The parser rejects output phones that are not in `phoneInventory`, unknown classes, and misplaced anchors, all with line numbers. The placeholder `(a) @C+ $ => æ` rule was dropped; the real rule file replaces the illustrative `(e)`/`(a)` fallbacks.
+- **Rules are written in the Kokoro alphabet** (see step 1), and `ə l` etc. are explicit tokens. The engine returns raw phones; stress and reduction are plugged in through `RuleEngine(finish: ...)` (default adds no stress), which step 3 supplies.
+- **Case:** the pipeline now passes tiers the word as written and caches on that key; the lexicon tries exact case then lower case, the rule engine lower-cases. Respelling resolution (step 4) will be case-sensitive by design (see open decisions).
+- **Dead-rule test:** `no dead rules` fails if any rule is not hit by a golden word, so every rule has at least one frozen example. The golden file freezes behaviour; it is not ground truth. Known heuristic misses that are accepted because real words come from the lexicon: `house` (z), `finger` (ʤ), `cow` (O), `they` (θ).
+- **Bug found by review of the first run:** `(er)` followed by `(r)` produced a doubled `ɹ` in `berry`; added `(arr) (err) (irr) (orr) (urr)`.
+- **Speed:** 60,000 words in about 130 ms (JIT, uncompiled-to-AOT), so the O(n^2) concern is closed.
+
 ## Goal
 
 Build our own English grapheme-to-phoneme (G2P) engine in Dart, aiming for espeak-ng-like outcomes on out-of-vocabulary words (invented names and Bardoro respellings such as `Er-zuh`), for the embedded Kokoro engine (`packages/bardoro_kokoro_local`, see `docs/FLUTTER_CONVERSION.md` §6.5b.3 and decision D11). English only. The project is GPL-3.0-or-later (D14), so GPL data (espeak-ng's `en_list`/`en_rules`) may be used as a reference.
@@ -147,7 +155,7 @@ Syntax:
 - Contexts may use `^`, `$`, `?`, `*`, `+`, `|` and classes. No parenthesised groups, since the grapheme is the only `(...)`.
 - Application order: longest grapheme first, then file order (so `(ch)` beats `(c)`, and specific contexts must precede general ones).
 - `#` starts a comment; empty output means silent.
-- Known sketch issues to resolve: the `(a) @C+ $ => æ` rule is a placeholder and not linguistically right; the `(e)` fallback to ɛ and `(a)` to ə are illustrative only. Phone symbols here are generic IPA and still need the Kokoro mapper.
+- The sketch's known issues were resolved in step 2 (see status log). The authoritative syntax description is the doc comment on `RuleParser`; phones are in the Kokoro alphabet, not generic IPA.
 
 ## Parser and engine (sketch, uncompiled)
 

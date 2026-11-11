@@ -21,7 +21,11 @@ class RuleEngine implements WordResolver {
 
   /// Raw (unstressed) phone symbols for [word], or null when some letter has no applicable rule.
   /// Matching is on the lower-cased word.
-  List<String>? transcribe(String word) {
+  List<String>? transcribe(String word) => transcribeTraced(word)?.phones;
+
+  /// Like [transcribe], also returning the rule-file line of every rule that fired, in order.
+  /// Hits are only counted for words that resolve completely.
+  ({List<String> phones, List<int> lines})? transcribeTraced(String word) {
     final w = word.toLowerCase();
     final raw = <String>[];
     final hits = <int>[];
@@ -42,7 +46,7 @@ class RuleEngine implements WordResolver {
     for (final l in hits) {
       ruleHits.update(l, (n) => n + 1, ifAbsent: () => 1);
     }
-    return raw;
+    return (phones: raw, lines: hits);
   }
 
   @override

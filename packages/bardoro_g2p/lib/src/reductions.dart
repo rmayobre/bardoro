@@ -44,7 +44,7 @@ String? posCue(String? previousWord) {
 /// - **Articles:** `a` is the schwa-like `ɐ` (the lexicon holds the letter name), `the` is `ðə`
 ///   before a consonant and `ði` before a vowel or a pause. Behaviour modelled on misaki's
 ///   handling; unverified by ear.
-/// - **Flapping:** `t`/`d` between a vowel and an unstressed vowel becomes `ɾ` in words that came
+/// - **Flapping:** `t` between a vowel and an unstressed vowel becomes `ɾ` in words that came
 ///   from the rules (American English; lexicon entries already carry their flaps).
 class Reductions {
   const Reductions({this.articles = true, this.flap = true});
@@ -73,12 +73,14 @@ class Reductions {
     }
   }
 
-  /// Word-internal flapping. Public for tests.
+  /// Word-internal flapping of `t` only. Flapping `d` as well was tried and measured worse against
+  /// both the lexicon and espeak-ng (the `ɾ→d` confusion was the 8th most common error), so `d` stays.
+  /// Public for tests.
   static List<Phone> flapped(List<Phone> phones) {
     final out = [...phones];
     for (var i = 1; i < out.length - 1; i++) {
       final p = out[i];
-      if (p.symbol != 't' && p.symbol != 'd') continue;
+      if (p.symbol != 't') continue;
       final prev = out[i - 1];
       final next = out[i + 1];
       final after = prev.isVowel || prev.symbol == 'ɹ';

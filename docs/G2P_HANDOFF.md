@@ -44,6 +44,23 @@ Context transferred from a design chat into this repo so Claude Code can continu
 - **Text normalization is not here:** digits, symbols and brackets are dropped and reported in `droppedChars`; `–` and `―` become `—`; curly/straight single quotes outside words are dropped and reported, hyphenated words are spoken as their parts. Number/abbreviation expansion still has to run in front (open decision below).
 - **Known weak spots:** the guessed stress of unmarked respellings; abbreviations and ALL-CAPS words are not spelled out; accented letters are unresolved.
 
+**Step 6 (oracle harness): done.** Files: `lib/src/oracle.dart` (edit distance, edit ops, stress index, `PairStats`), `tool/oracle.dart` (CLI), `test/oracle_test.dart`; `RuleEngine.transcribeTraced` returns the rule lines used per word.
+- **Run it:** `cd packages/bardoro_g2p && dart run tool/oracle.dart --cmudict cmudict.dict --sample 6000 --out report.md`. CMUdict (BSD-style licence) is **not bundled**; download `cmudict.dict` from `cmusphinx/cmudict` for the run. Without `--cmudict` the slice comes from our lexicon's headwords. espeak-ng is optional: it is found on `PATH` or via `$ESPEAK_NG`; without it the espeak half is skipped and its test is reported as skipped (verified). The run takes about 3 seconds for 6,000 words.
+- **What it measures:** rule engine alone (no lexicon, no morphology: the situation for invented names), then stress, reduction and `t`-flapping, versus (a) our bundled misaki lexicon and (b) `espeak-ng -v en-us --ipa` mapped into the Kokoro alphabet. PER ignores stress marks; `ᵊ ɐ` count as `ə` and `ᵻ` as `ɪ`. Stress accuracy = same primary-stress vowel index, words with 2+ vowels on both sides. The report also has per-rule word counts with "blame" (error words that used the rule), a phone confusion table, dead rules and the worst words.
+- **Measured** (espeak-ng 1.51 from Ubuntu noble, 5,863 CMUdict words, every k-th of `^[a-z]{3,}$`; 0 unresolved by the rules, 21 espeak symbols outside the Kokoro vocab dropped from the reference):
+
+| Comparison | Words | PER | Exact words | Stress position (2+ vowels) |
+|---|---:|---:|---:|---:|
+| rules vs lexicon | 2,350 | 21.4% | 28.9% | 69.8% (1,949 words) |
+| rules vs espeak-ng | 5,863 | 23.4% | 26.4% | 71.3% (4,947 words) |
+| espeak-ng vs lexicon (ceiling) | 2,350 | 7.2% | 65.6% | 95.6% (1,915 words) |
+
+  Only 2,350 of the 5,863 CMUdict words are in the misaki lexicon (CMUdict has many names and rare words), so the lexicon comparison covers the common-word subset. The sketch's SPIKES S3 target (unresolved words under 1% per book) cannot be measured here because no book text is available; as a proxy, the rules resolved 100% of the ASCII word list (their only refusal is a letter without a rule, such as accented letters).
+- **What drives the error (top confusions, both references):** `s→z` (word-final and plural `-s` voicing, a morphology job that the lexicon tier normally does), `ə` where the reference keeps a full vowel (`ə→ɛ`, `ə→æ`, `ə→O`, `ə→ɪ`, `ə→ɑ`: **we reduce unstressed vowels more than espeak and misaki do**), `ɪ→I` and `ɪ→i`. Stress position is 70% right, versus espeak's 96% on the same words, so stress is the biggest single gap and the cheapest to attack (suffix table, secondary stress).
+- **One tuning change came out of the harness:** flapping `d` as well as `t` produced `ɾ→d` errors (100 vs lexicon, 238 vs espeak); flapping is now `t` only, which moved PER from 22.1% to 21.4% (lexicon) and 24.1% to 23.4% (espeak). Nothing else was tuned to the oracle.
+- **Environment note:** espeak-ng was installed with `apt-get` inside the cloud container only for this measurement; nothing in the repo depends on it.
+- **Learned OOV model (Step 7 of the original plan):** not started. The numbers say a rules baseline at about 21-23% PER and 70% stress accuracy leaves a large gap to espeak (7% and 96%). Before training anything, try cheap fixes in this order: less aggressive vowel reduction, more suffix-driven stress and secondary stress, `s`/`z` voicing; re-run the harness after each. Revisit a trained model if PER stays above about 15%.
+
 ## Goal
 
 Build our own English grapheme-to-phoneme (G2P) engine in Dart, aiming for espeak-ng-like outcomes on out-of-vocabulary words (invented names and Bardoro respellings such as `Er-zuh`), for the embedded Kokoro engine (`packages/bardoro_kokoro_local`, see `docs/FLUTTER_CONVERSION.md` §6.5b.3 and decision D11). English only. The project is GPL-3.0-or-later (D14), so GPL data (espeak-ng's `en_list`/`en_rules`) may be used as a reference.

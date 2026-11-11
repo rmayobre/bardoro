@@ -33,10 +33,10 @@ void main() {
       expect(p.phonemize('Vitamin A.').phonemes, endsWith('ˈA.'));
     });
 
-    test('flapping only touches t/d between a vowel and an unstressed vowel', () {
+    test('flapping only touches t between a vowel and an unstressed vowel', () {
       expect(renderPhones(Reductions.flapped(parsePhones('wˈɔtəɹ'))), 'wˈɔɾəɹ');
       expect(renderPhones(Reductions.flapped(parsePhones('ˈɑtˈɑ'))), 'ˈɑtˈɑ');
-      expect(renderPhones(Reductions.flapped(parsePhones('tˈɔdəɹ'))), 'tˈɔɾəɹ');
+      expect(renderPhones(Reductions.flapped(parsePhones('tˈɔdəɹ'))), 'tˈɔdəɹ', reason: 'd is not flapped');
       expect(renderPhones(Reductions.flapped(parsePhones('stˈæ'))), 'stˈæ');
       expect(p.phonemize('Baten').phonemes, contains('ɾ'));
       final off = Phonemizer.fromDirectory(

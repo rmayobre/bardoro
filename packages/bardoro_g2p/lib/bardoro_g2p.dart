@@ -6,6 +6,7 @@ library;
 export 'src/kokoro_mapper.dart';
 export 'src/lexicon.dart';
 export 'src/morphology.dart';
+export 'src/oracle.dart';
 export 'src/overrides.dart';
 export 'src/phonemizer.dart';
 export 'src/phone.dart';

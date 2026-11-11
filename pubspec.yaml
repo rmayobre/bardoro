@@ -5,6 +5,7 @@ environment:
   sdk: ^3.12.2
 workspace:
   - packages/bardoro_core
+  - packages/bardoro_g2p
   - packages/bardoro_kokoro_local
   - packages/bardoro_services
   - app

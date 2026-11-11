@@ -1,0 +1,9 @@
+name: bardoro_g2p
+description: Pure-Dart English grapheme-to-phoneme engine that emits phonemes in Kokoro's vocabulary.
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.12.2
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

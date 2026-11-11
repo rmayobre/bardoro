@@ -2,6 +2,18 @@
 
 Context transferred from a design chat into this repo so Claude Code can continue. **Everything code-shaped in this file is an uncompiled sketch.** None of it has been run through `dart analyze` or `dart test`. Treat it as a starting point and expect fixes, especially in the rule parser and `RuleEngine`.
 
+## Status log (newest last)
+
+**Step 0 (scaffold): done.** `packages/bardoro_g2p` exists, is in the root `workspace:` list, `dart analyze`/`dart test` green. Environment note: the cloud container has no Flutter SDK, so `dart pub get` fails on the full workspace. Verification used a scratch wrapper that temporarily trimmed the root `workspace:` list and restored `pubspec.yaml`/`pubspec.lock` afterwards; run the usual `flutter pub get` locally.
+
+**Step 1 (lexicon, mapper, vocab test): done.**
+- Vocab verified against the real `hexgrad/Kokoro-82M` `config.json` (supplied by the user because huggingface.co is blocked from the cloud container). It has **114** symbols; `test/fixtures/kokoro_config.json` keeps only `n_token` and `vocab` from it.
+- **Diphthong claim confirmed:** `A I O W Y` are single vocab symbols (A=eɪ, I=aɪ, O=oʊ, W=aʊ, Y=ɔɪ); the vocab also has `Q S T` which we do not use. There is no `eɪ`-style multi-character token.
+- **Changed from the sketch:** internal phones are already Kokoro/misaki-US symbols (one code unit each), so lexicon, rules and stress share the model's alphabet. `KokoroMapper.fromIpa` exists only for external generic IPA (inline overrides, espeak oracle); `restrict` drops and reports anything outside the vocab. Phone symbols in the rule DSL (see below) must therefore be written in this alphabet, not generic IPA (`A` not `eɪ`, `ʧ` not `tʃ`).
+- Lexicon: misaki `us_gold` + `us_silver` (Apache-2.0 repo, user-approved), 183,561 entries (4.6 MB text) with POS variants for heteronyms (`read`, `wind`, `live`...). Lookup is exact-case first, then lower-case; lower case is never promoted to a capitalised name.
+- Tests assert no lexicon symbol and no internal phone is missing from the vocab.
+- **Open:** misaki does not document the upstream origin of its entries; only the repo-level Apache-2.0 was verified (`assets/NOTICE`).
+
 ## Goal
 
 Build our own English grapheme-to-phoneme (G2P) engine in Dart, aiming for espeak-ng-like outcomes on out-of-vocabulary words (invented names and Bardoro respellings such as `Er-zuh`), for the embedded Kokoro engine (`packages/bardoro_kokoro_local`, see `docs/FLUTTER_CONVERSION.md` §6.5b.3 and decision D11). English only. The project is GPL-3.0-or-later (D14), so GPL data (espeak-ng's `en_list`/`en_rules`) may be used as a reference.

@@ -1,0 +1,11 @@
+en_lexicon.txt is derived from the US gold and silver dictionaries in hexgrad/misaki
+(https://github.com/hexgrad/misaki, misaki/data/us_gold.json and us_silver.json), which is
+distributed under the Apache License 2.0 (see LICENSE-misaki-Apache-2.0.txt). Apache-2.0 is
+compatible with this project's GPL-3.0-or-later.
+
+Conversion (tool/build_lexicon.dart) only re-encodes the JSON into a tab-separated text file; gold
+entries win over silver and no pronunciation was added or edited by hand.
+
+Open item: the misaki repository does not document where its individual dictionary entries
+originate. The repository-level license was checked; the upstream provenance of the data was not
+and cannot be confirmed from the repository alone. See docs/G2P_HANDOFF.md.

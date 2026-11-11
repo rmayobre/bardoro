@@ -103,38 +103,39 @@ class RuleParser {
   final Set<String> allowed;
   static final _className = RegExp(r'^[A-Za-z][A-Za-z0-9_]*$');
 
+  /// Class definitions are collected first, so a class may be used above the line that defines it
+  /// (this lets a second rule file layered on the first share its classes).
   RuleSet parse(String text) {
     final classes = <String, String>{};
     final rules = <Rule>[];
-    var section = '';
     final lines = text.split('\n');
     for (var n = 0; n < lines.length; n++) {
+      final line = _strip(lines[n]);
+      if (!line.startsWith('class ')) continue;
+      final m = RegExp(r'^class\s+(\S+)\s*=\s*(.*)$').firstMatch(line);
+      if (m == null || !_className.hasMatch(m[1]!)) {
+        throw RuleParseException(n + 1, 'bad class definition: $line');
+      }
+      final chars = m[2]!.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+      if (chars.isEmpty || chars.any((c) => c.runes.length != 1)) {
+        throw RuleParseException(n + 1, 'class members must be single characters');
+      }
+      if (classes.containsKey(m[1])) {
+        throw RuleParseException(n + 1, 'class ${m[1]} defined twice');
+      }
+      classes[m[1]!] = '[${chars.join()}]';
+    }
+    var section = '';
+    for (var n = 0; n < lines.length; n++) {
       final lineNo = n + 1;
-      var line = lines[n];
-      final hash = line.indexOf('#');
+      final raw = lines[n];
+      final hash = raw.indexOf('#');
       if (hash >= 0) {
-        final comment = line.substring(hash + 1).trim();
+        final comment = raw.substring(hash + 1).trim();
         if (comment.startsWith('--- ')) section = comment.substring(4).trim();
-        line = line.substring(0, hash);
       }
-      line = line.trim();
-      if (line.isEmpty) continue;
-
-      if (line.startsWith('class ')) {
-        final m = RegExp(r'^class\s+(\S+)\s*=\s*(.*)$').firstMatch(line);
-        if (m == null || !_className.hasMatch(m[1]!)) {
-          throw RuleParseException(lineNo, 'bad class definition: $line');
-        }
-        final chars = m[2]!.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
-        if (chars.isEmpty || chars.any((c) => c.runes.length != 1)) {
-          throw RuleParseException(lineNo, 'class members must be single characters');
-        }
-        if (classes.containsKey(m[1])) {
-          throw RuleParseException(lineNo, 'class ${m[1]} defined twice');
-        }
-        classes[m[1]!] = '[${chars.join()}]';
-        continue;
-      }
+      final line = _strip(raw);
+      if (line.isEmpty || line.startsWith('class ')) continue;
 
       final arrow = line.indexOf('=>');
       if (arrow < 0) throw RuleParseException(lineNo, 'missing "=>"');
@@ -162,6 +163,11 @@ class RuleParser {
       );
     }
     return RuleSet(rules);
+  }
+
+  static String _strip(String line) {
+    final hash = line.indexOf('#');
+    return (hash >= 0 ? line.substring(0, hash) : line).trim();
   }
 
   String _context(String ctx, Map<String, String> classes, int lineNo, {required bool isLeft}) {

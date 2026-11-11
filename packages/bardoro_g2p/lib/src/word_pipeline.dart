@@ -6,9 +6,13 @@ import 'phone.dart';
 enum Source { override, lexicon, morphology, rules, respelling, unresolved }
 
 class WordPhones {
-  const WordPhones(this.phones, this.source);
+  const WordPhones(this.phones, this.source, {this.stressGuessed = false});
   final List<Phone> phones;
   final Source source;
+
+  /// True when the stress position came from a heuristic rather than from the lexicon, an
+  /// override, or an explicit marker (reported so a caller can review it).
+  final bool stressGuessed;
 
   @override
   String toString() => '${renderPhones(phones)} ($source)';

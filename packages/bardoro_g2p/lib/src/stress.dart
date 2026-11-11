@@ -14,7 +14,7 @@ import 'syllables.dart';
 /// 3. A secondary stress goes two syllables before the primary when that syllable exists.
 /// 4. Remaining unstressed short vowels reduce to schwa.
 class StressAssigner {
-  const StressAssigner({this.suffixes = defaultSuffixes});
+  const StressAssigner({this.suffixes = defaultSuffixes, this.reducible = defaultReducible});
 
   /// Spelling suffix -> which syllable from the word end takes primary stress (1 = last).
   final Map<String, int> suffixes;
@@ -26,7 +26,10 @@ class StressAssigner {
   };
 
   /// Reduces to schwa when unstressed. `ɪ`, the diphthongs and `i`/`u` keep their quality.
-  static const reducible = {'æ', 'ɑ', 'ɔ', 'ɛ', 'ʌ', 'ʊ', 'ɜ'};
+  static const defaultReducible = {'æ', 'ɑ', 'ɔ', 'ɛ', 'ʌ', 'ʊ', 'ɜ'};
+
+  /// Vowels that become schwa when unstressed. Respellings use a smaller set.
+  final Set<String> reducible;
 
   /// 0-based index of the primary stressed syllable.
   int primaryIndex(List<Syllable> syl, String word) {

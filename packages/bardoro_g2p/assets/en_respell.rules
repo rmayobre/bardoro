@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Piece-level rules for respellings such as "Er-zuh" or "Dom-ih-nair-ee-uh".
+# Loaded in front of en_us.rules (so these win ties of equal grapheme length) and run on one piece
+# at a time, so ^ and $ mean the start and end of the piece. Classes come from en_us.rules.
+# Respellings are phonetic: vowel digraphs have their conventional respelling values and g/c are
+# always hard (write j or s explicitly for the soft sounds).
+
+# --- respelling vowels
+(eye)             => I
+(ahr)             => ɑ ɹ
+(ah)              => ɑ
+(air)             => ɛ ɹ
+(ayr)             => ɛ ɹ
+(uh)              => ʌ
+(ih)              => ɪ
+(eh)              => ɛ
+(oh)              => O
+(ow)              => W
+(awr)             => ɔ ɹ
+(o) $             => O
+
+# --- respelling consonants
+(g)               => ɡ
+(c)               => k
+(ng)              => ŋ

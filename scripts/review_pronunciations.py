@@ -4,7 +4,7 @@ Listen to the pronunciation tests two clips at a time and pick the one that soun
 updated: the respelling is kept when you pick it, and the second column is left blank when you pick Kokoro's own
 pronunciation (blank means "leave Kokoro alone", so that word is not sent as a correction).
 
-Run tools/test_glossary.py first; it writes the clips and a manifest.json into output/pronunciation_tests/<glossary>/.
+Run scripts/test_glossary.py first; it writes the clips and a manifest.json into output/pronunciation_tests/<glossary>/.
 
 Usage:
   python review_pronunciations.py                                   # every test folder under output/pronunciation_tests
@@ -48,7 +48,7 @@ def find_test_dirs(targets):
     if not targets:
         dirs = sorted(p.parent for p in TESTS_DIR.glob("*/manifest.json"))
         if not dirs:
-            sys.exit(f"No pronunciation tests found in {TESTS_DIR}. Run tools/test_glossary.py first.")
+            sys.exit(f"No pronunciation tests found in {TESTS_DIR}. Run scripts/test_glossary.py first.")
         return dirs
     dirs = []
     for t in targets:
@@ -57,7 +57,7 @@ def find_test_dirs(targets):
                 dirs.append(cand)
                 break
         else:
-            sys.exit(f"No manifest.json in {t} (or {TESTS_DIR / t}). Run tools/test_glossary.py first.")
+            sys.exit(f"No manifest.json in {t} (or {TESTS_DIR / t}). Run scripts/test_glossary.py first.")
     return dirs
 
 

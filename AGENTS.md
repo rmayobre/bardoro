@@ -15,8 +15,12 @@ pronunciations for invented names. Pipeline per book:
 
 ## Layout
 
+This repository is an AI skill project: `SKILL.md` at the root is the skill entry point (frontmatter `name` and
+`description`), and the executable tooling lives in `scripts/`.
+
 ```
-tools/
+SKILL.md                   the skill (name: bardoro); the workflow an agent follows
+scripts/
   epub_to_kokoro.py        main converter (resumable)
   find_unknown_words.py    unrecognised-word finder, exports .csv/.json/.py/.txt
   test_pronunciation.py    renders a word as written vs. respelled so it can be heard
@@ -27,7 +31,6 @@ tools/
   update_glossary.py       merges a book's pronunciations into a shared series glossary
   make-audiobook.sh        two-phase wrapper tying the above together
   requirements.txt         Python dependencies (ffmpeg/ffprobe come from the OS)
-  skill/SKILL.md           copy of the Claude skill that drives this workflow
 voices/                    voice profiles, one JSON per voice (tracked); chosen with --profile NAME
 glossaries/                shared pronunciations per series (tracked), e.g. magic-the-gathering.csv
 books/                     source epubs (git-ignored; copyrighted)
@@ -39,7 +42,7 @@ tests/                     smoke_test.sh + fake_kokoro_server.py (no real TTS or
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r tools/requirements.txt      # also needs ffmpeg and ffprobe on PATH
+pip install -r scripts/requirements.txt      # also needs ffmpeg and ffprobe on PATH
 export KOKORO_URL=https://your-kokoro-server
 ```
 
@@ -47,22 +50,22 @@ export KOKORO_URL=https://your-kokoro-server
 
 ```bash
 # Phase 1: write output/<slug>/words.csv (stops so pronunciations can be filled in)
-tools/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/<series>.csv
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/<series>.csv
 # Phase 2 (same command again): convert to output/<slug>/<slug>.m4b
-tools/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/<series>.csv
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/<series>.csv
 # Preview which sections will be read
-tools/make-audiobook.sh "books/Some Book.epub" some-book --list
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --list
 # Hear respellings before a full run
-python tools/test_pronunciation.py --pronunciations output/some-book/words.csv --max 10 --fx
+python scripts/test_pronunciation.py --pronunciations output/some-book/words.csv --max 10 --fx
 # Save a finished book's pronunciations for the next book in the series
-python tools/update_glossary.py output/some-book/words.csv glossaries/<series>.csv
+python scripts/update_glossary.py output/some-book/words.csv glossaries/<series>.csv
 ```
 
 Extra flags for the converter go after `--`, for example `-- --tempo 0.88 --voice am_onyx`.
 
 ## Verify changes
 
-Run `tests/smoke_test.sh` after editing anything under `tools/`. It builds a tiny epub (with an apostrophe in its
+Run `tests/smoke_test.sh` after editing anything under `scripts/`. It builds a tiny epub (with an apostrophe in its
 title on purpose), runs both wrapper phases against a fake Kokoro server, and checks: names found, respellings (from
 both a glossary and the book file) reach the server, three chapters and chapter markers in the `.m4b`, a rerun makes
 no new server calls, and the glossary update works. It must print `ALL OK`. Do not test against the real server
@@ -94,12 +97,13 @@ unless the user asks, because full runs take a long time.
   it comes from `KOKORO_URL` or `--url`.
 - Do not commit epubs or generated audio (`.gitignore` covers them). Do commit `output/<slug>/words.csv` and
   glossaries; that is the reusable work.
-- Prefer small, additive changes to `tools/`; keep the scripts dependency-light (see `requirements.txt`) and make
+- Prefer small, additive changes to `scripts/`; keep the scripts dependency-light (see `requirements.txt`) and make
   new options discoverable via `--help` and the module docstring.
 - The workspace an agent runs in may not be able to reach the user's Kokoro server. If it cannot, prepare everything
   up to the final command and give the user the exact command to run, rather than retrying other routes.
 
 ## Skill
 
-`tools/skill/SKILL.md` mirrors the Claude skill `bardoro`. If workflow steps or flags change,
-update that file too; the user re-saves it in Claude from the new text.
+`SKILL.md` is the Claude skill `bardoro` and is the single source of truth. If workflow steps or flags change,
+update it in the same change. To install it, copy or symlink this directory into a skills folder (for example
+`~/.claude/skills/bardoro`) or zip it and upload it in Claude.

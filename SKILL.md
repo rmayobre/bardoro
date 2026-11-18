@@ -1,16 +1,17 @@
 ---
 name: bardoro
-description: Turn an epub into a chaptered audiobook with Kokoro: find unusual names, research pronunciations using the user's book context, then run the Bardoro repo tools.
+description: Turn an epub into a chaptered audiobook with Kokoro: find unusual names, research pronunciations using the user's book context, then run the bundled scripts. Use when the user wants an epub turned into an audiobook, m4b, or text-to-speech narration, or wants names and pronunciations fixed for one.
 ---
 
 # Bardoro: epub to Kokoro audiobook
 
-Builds one chaptered `.m4b` from an epub through a Kokoro-FastAPI server, after fixing how invented names and unusual words are pronounced. It drives the user's Bardoro repository (see its `AGENTS.md`).
+Builds one chaptered `.m4b` from an epub through a Kokoro-FastAPI server, after fixing how invented names and unusual words are pronounced. This directory is the skill; all paths below are relative to it (see `AGENTS.md` for contributor notes).
 
-Repo layout (relative to the repo root):
-- `tools/make-audiobook.sh EPUB SLUG [--glossary FILE]... [--list] [--url URL] [-- extra converter args]` is the two-phase wrapper. Phase 1 writes `output/SLUG/words.csv` and stops. Running it again does phase 2 and writes `output/SLUG/SLUG.m4b`.
-- `tools/find_unknown_words.py`, `tools/epub_to_kokoro.py`, `tools/test_pronunciation.py`, `tools/update_glossary.py` are the underlying tools.
+Skill layout:
+- `scripts/make-audiobook.sh EPUB SLUG [--glossary FILE]... [--list] [--url URL] [-- extra converter args]` is the two-phase wrapper. Phase 1 writes `output/SLUG/words.csv` and stops. Running it again does phase 2 and writes `output/SLUG/SLUG.m4b`.
+- `scripts/find_unknown_words.py`, `scripts/epub_to_kokoro.py`, `scripts/test_pronunciation.py`, `scripts/update_glossary.py` are the underlying tools.
 - `glossaries/<series>.csv` holds shared pronunciations (`word,pronunciation`); `output/SLUG/words.csv` holds one book's (`word,count,pronunciation`).
+- `voices/` holds voice profiles (JSON); `books/` and `output/` are working folders for epubs and results.
 - `tests/smoke_test.sh` checks the toolchain against a fake server.
 
 ## 1. Collect inputs before doing any work
@@ -18,7 +19,7 @@ Repo layout (relative to the repo root):
 Ask with AskUserQuestion (up to four questions per call; use a second call or plain text for the rest). Do not guess values the user must supply.
 
 **Required**
-- Where the repo is (ask once; if it is attached or already in the working directory, use that). If it cannot be found, say so; do not rewrite the scripts from memory.
+- Where this skill's directory is, if it is not the working directory (ask once). If the scripts cannot be found, say so; do not rewrite them from memory.
 - Path to the epub, and a short slug for the output folder (for example `brothers-war`).
 - Kokoro server URL (never assume `localhost:8880`; the user may have `KOKORO_URL` set, so confirm it).
 
@@ -30,20 +31,20 @@ Ask with AskUserQuestion (up to four questions per call; use a second call or pl
 - Whether a series glossary already exists in `glossaries/` to reuse (list the folder and offer the match).
 
 **Settings, offering defaults** (accept "defaults"):
-- Voice profile: list them with `python tools/voice_profiles.py list` and pass `--profile NAME` to the wrapper (a profile is a JSON file in `voices/`; flags override it). Without one, the built-in defaults below apply.
+- Voice profile: list them with `python scripts/voice_profiles.py list` and pass `--profile NAME` to the wrapper (a profile is a JSON file in `voices/`; flags override it). Without one, the built-in defaults below apply.
 - Voice: default is the server blend `am_onyx(4)+am_adam(1)`; plain `am_onyx` if the server rejects blends.
 - Tempo: default `0.90`; `0.88` is noticeably slower. Keep the server speed at 1.0.
 - Skip the deep-voice post-processing (`--no-fx`)?
 
 ## 2. Check prerequisites
 
-- Python packages from `tools/requirements.txt` (`pip install --break-system-packages -r tools/requirements.txt` if missing) and `ffmpeg`/`ffprobe` on PATH.
+- Python packages from `scripts/requirements.txt` (`pip install --break-system-packages -r scripts/requirements.txt` if missing) and `ffmpeg`/`ffprobe` on PATH.
 - Server reachability: `GET <url>/v1/audio/voices`. The workspace network is often restricted and a home-lab server may be unreachable. If the request is refused or times out, do not retry other routes. Prepare everything up to the final command and give the user the exact command to run where the server is reachable, or use a shell on their computer if one is linked.
 
 ## 3. Find the unknown words (phase 1)
 
 ```bash
-tools/make-audiobook.sh "<epub>" <slug> --glossary glossaries/<series>.csv
+scripts/make-audiobook.sh "<epub>" <slug> --glossary glossaries/<series>.csv
 ```
 
 This writes `output/<slug>/words.csv` and stops. If it already exists, keep it (use `--refresh` only if the user asks, because it overwrites their work). Read the list. Rare but real English words (archaic or technical terms) usually need no change; names, places and invented terms are the focus.
@@ -61,28 +62,28 @@ Show the user a compact table of word → respelling, with uncertain entries mar
 Optional spot check when the server is reachable:
 
 ```bash
-python tools/test_pronunciation.py --pronunciations output/<slug>/words.csv --max 10 --fx
+python scripts/test_pronunciation.py --pronunciations output/<slug>/words.csv --max 10 --fx
 ```
 
 It writes each word as written and respelled into `output/pronunciation_tests/`; send the clips to the user and adjust.
 
-To check a whole glossary by ear: `python tools/test_glossary.py <glossary>` (renders as-written and respelled clips into one review file),
-then the user runs `python tools/review_pronunciations.py <glossary>` in a terminal. It plays each pair, asks which sounds best
+To check a whole glossary by ear: `python scripts/test_glossary.py <glossary>` (renders as-written and respelled clips into one review file),
+then the user runs `python scripts/review_pronunciations.py <glossary>` in a terminal. It plays each pair, asks which sounds best
 (1, 2, or r to repeat) and updates the glossary and moves decided clips into `clips/reviewed/` (ignored afterwards); picking Kokoro's own pronunciation leaves the second column blank, and blank
-rows are never respelled. `tools/play_audio.py FILE` plays any clip on Linux, macOS or Windows.
+rows are never respelled. `scripts/play_audio.py FILE` plays any clip on Linux, macOS or Windows.
 
 ## 5. Convert (phase 2)
 
 Preview the sections first and check that the prologue, chapters and epilogue are present and the front and back matter is skipped:
 
 ```bash
-tools/make-audiobook.sh "<epub>" <slug> --list
+scripts/make-audiobook.sh "<epub>" <slug> --list
 ```
 
 Then run the same wrapper command again (with `--url` or `KOKORO_URL`, the glossary, and any `-- --tempo X --voice Y` settings):
 
 ```bash
-tools/make-audiobook.sh "<epub>" <slug> --glossary glossaries/<series>.csv --url <url> -- --tempo 0.9
+scripts/make-audiobook.sh "<epub>" <slug> --glossary glossaries/<series>.csv --url <url> -- --tempo 0.9
 ```
 
 - It is long-running (large books take many minutes to hours). Run it in the background or with a long timeout and check progress. It prints timestamped, flushed progress (per chunk, per chapter, with an ETA) and also writes `output/<slug>/chapters/convert.log` (override with `-- --log FILE`); `tail -f` that file.
@@ -93,7 +94,7 @@ tools/make-audiobook.sh "<epub>" <slug> --glossary glossaries/<series>.csv --url
 ## 6. Finish
 
 - Send the finished `.m4b` and the final `words.csv` with SendUserFile. If the file is too large to send, say where it is.
-- Offer to save the new pronunciations for the next book in the series: `python tools/update_glossary.py output/<slug>/words.csv glossaries/<series>.csv`.
+- Offer to save the new pronunciations for the next book in the series: `python scripts/update_glossary.py output/<slug>/words.csv glossaries/<series>.csv`.
 - Summarize in two or three lines: sections read, pronunciations applied, and any words left uncertain.
 - End with a "Sources:" list of the pages used to confirm pronunciations, as markdown links.
 

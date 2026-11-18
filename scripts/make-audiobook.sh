@@ -5,7 +5,7 @@
 #           so you can fill in the pronunciation column.
 #   Phase 2 (run it again):         converts the epub with those pronunciations into output/<slug>/<slug>.m4b.
 #
-# usage: tools/make-audiobook.sh EPUB SLUG [options] [-- extra epub_to_kokoro.py args]
+# usage: scripts/make-audiobook.sh EPUB SLUG [options] [-- extra epub_to_kokoro.py args]
 #   --glossary FILE   shared pronunciations to apply first (repeatable); the book's words.csv always wins
 #   --url URL         Kokoro server URL (default: $KOKORO_URL)
 #   --list            only preview which sections would be read
@@ -14,13 +14,13 @@
 #   --list-profiles   show the available voice profiles and exit
 #
 # examples:
-#   tools/make-audiobook.sh "books/The Brothers' War - Jeff Grubb (1998).epub" brothers-war \
+#   scripts/make-audiobook.sh "books/The Brothers' War - Jeff Grubb (1998).epub" brothers-war \
 #       --glossary glossaries/magic-the-gathering.csv
-#   tools/make-audiobook.sh "books/Arthas.epub" arthas -- --tempo 0.88 --voice am_onyx
+#   scripts/make-audiobook.sh "books/Arthas.epub" arthas -- --tempo 0.88 --voice am_onyx
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TOOLS="$ROOT/tools"
+TOOLS="$ROOT/scripts"
 
 if [ "${1:-}" = "--list-profiles" ]; then
   [ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
@@ -65,7 +65,7 @@ if [ ! -f "$WORDS" ] || [ "$REFRESH" -eq 1 ]; then
   echo
   echo "Wrote $WORDS"
   echo "Next: fill in the 'pronunciation' column (leave blank where a word already sounds right),"
-  echo "      optionally spot-check with tools/test_pronunciation.py, then run this command again."
+  echo "      optionally spot-check with scripts/test_pronunciation.py, then run this command again."
   exit 0
 fi
 

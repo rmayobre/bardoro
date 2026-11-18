@@ -3,15 +3,15 @@
 One JSON file per voice. Pick one when making a book:
 
 ```bash
-tools/make-audiobook.sh "books/Some Book.epub" some-book --profile deep-narrator
-python tools/test_glossary.py warcraft --profile plain-onyx
-python tools/voice_profiles.py list          # see what is available
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --profile deep-narrator
+python scripts/test_glossary.py warcraft --profile plain-onyx
+python scripts/voice_profiles.py list          # see what is available
 ```
 
 Create your own by copying a file here, or with the helper:
 
 ```bash
-python tools/voice_profiles.py new gravel --from deep-narrator --voice am_michael --pitch 0.9 --description "Rougher"
+python scripts/voice_profiles.py new gravel --from deep-narrator --voice am_michael --pitch 0.9 --description "Rougher"
 ```
 
 Every key is optional; anything left out uses the built-in default.

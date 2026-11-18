@@ -21,7 +21,7 @@ Usage:
   python voice_profiles.py show deep-narrator
   python voice_profiles.py new gravel --voice am_michael --pitch 0.9 --description "Rougher, deeper"
   python voice_profiles.py new gravel2 --from gravel --tempo 0.85    # start from an existing profile
-  tools/make-audiobook.sh "books/Some Book.epub" some-book --profile gravel
+  scripts/make-audiobook.sh "books/Some Book.epub" some-book --profile gravel
 """
 import argparse
 import json

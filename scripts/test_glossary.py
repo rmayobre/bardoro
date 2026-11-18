@@ -178,7 +178,7 @@ def main():
         test_glossary(p, args)
     if not args.list:
         log(f"Listen to the *_review.flac files in {args.out_dir}/ with the .txt index beside them, or run "
-            "tools/review_pronunciations.py to pick the best clip for each word and update the glossary.")
+            "scripts/review_pronunciations.py to pick the best clip for each word and update the glossary.")
 
 
 if __name__ == "__main__":

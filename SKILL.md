@@ -67,7 +67,7 @@ Optional spot check when the server is reachable:
 python scripts/test_pronunciation.py --pronunciations <slug>_work/words.csv --max 10 --fx
 ```
 
-It writes each word as written and respelled into `output/pronunciation_tests/`; send the clips to the user and adjust.
+It writes each word as written and respelled into the OS temp folder (`python scripts/resources.py tests` prints it; the OS cleans it up eventually, so send the clips now); send the clips to the user and adjust.
 
 To check a whole glossary by ear: `python scripts/test_glossary.py <glossary>` (renders as-written and respelled clips into one review file),
 then the user runs `python scripts/review_pronunciations.py <glossary>` in a terminal. It plays each pair, asks which sounds best

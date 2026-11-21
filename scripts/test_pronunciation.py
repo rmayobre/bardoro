@@ -11,7 +11,7 @@ Usage:
   python test_pronunciation.py Tocasia --pronunciations words.csv --fx    # include the deep-voice post-processing
   python test_pronunciation.py Urza --sentence "{word} drew his sword."   # custom sentence, {word} is replaced
 
-Options: --url (default $KOKORO_URL), --profile NAME, --voice, --speed, --pitch, --tempo, --bass, --no-fx, --out-dir (default <repo>/output/pronunciation_tests)
+Options: --url (default $KOKORO_URL), --profile NAME, --voice, --speed, --pitch, --tempo, --bass, --no-fx, --out-dir (default <OS temp>/bardoro/pronunciation_tests)
 Requires the same packages as epub_to_kokoro.py, plus a reachable Kokoro-FastAPI server.
 """
 import argparse
@@ -24,7 +24,9 @@ from epub_to_kokoro import (add_voice_args, apply_pronunciations, build_filter, 
                             resolve_voice, run, synthesize)
 
 DEFAULT_SENTENCE = "The name {word} echoed through the hall."
-DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "output" / "pronunciation_tests"
+import resources  # noqa: E402
+
+DEFAULT_OUT_DIR = resources.TEST_DIR   # OS temp folder, cleaned up by the OS
 
 
 def slug(word):
@@ -40,7 +42,7 @@ def main():
     ap.add_argument("--sentence", default=DEFAULT_SENTENCE)
     ap.add_argument("--max", type=int, default=20, help="limit when testing a whole file (default 20)")
     ap.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR),
-                    help="where the clips go (default: <repo>/output/pronunciation_tests)")
+                    help="where the clips go (default: <OS temp>/bardoro/pronunciation_tests)")
     args = ap.parse_args()
     resolve_voice(args, fx_default=False)  # clips are plain unless --fx or a profile asks for the processing
 

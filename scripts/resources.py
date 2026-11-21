@@ -12,11 +12,15 @@ Command line (used by make-audiobook.sh):
   python resources.py epub NAME          print the path of an epub, exit 1 if not found
   python resources.py epubs              list the .epub files in ./ and ./books
   python resources.py where              show the folders searched
+  python resources.py tests              print the folder pronunciation test clips are written to (OS temp)
 """
 import sys
+import tempfile
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
+# Scratch audio from the pronunciation test scripts goes in the OS temp folder, so the OS cleans it up eventually.
+TEST_DIR = Path(tempfile.gettempdir()) / "bardoro" / "pronunciation_tests"
 
 
 def search_dirs(kind):
@@ -83,6 +87,8 @@ def main():
     elif cmd == "epubs":
         for p in list_epubs():
             print(p)
+    elif cmd == "tests":
+        print(TEST_DIR)
     elif cmd == "where":
         for kind in ("glossaries", "voices"):
             print(f"{kind}: " + ", ".join(str(d) for d in search_dirs(kind)))

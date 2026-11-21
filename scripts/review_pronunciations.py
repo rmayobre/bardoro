@@ -4,11 +4,11 @@ Listen to the pronunciation tests two clips at a time and pick the one that soun
 updated: the respelling is kept when you pick it, and the second column is left blank when you pick Kokoro's own
 pronunciation (blank means "leave Kokoro alone", so that word is not sent as a correction).
 
-Run scripts/test_glossary.py first; it writes the clips and a manifest.json into output/pronunciation_tests/<glossary>/.
+Run scripts/test_glossary.py first; it writes the clips and a manifest.json into <OS temp>/bardoro/pronunciation_tests/<glossary>/ (run `python resources.py tests` to print it).
 
 Usage:
-  python review_pronunciations.py                                   # every test folder under output/pronunciation_tests
-  python review_pronunciations.py ../output/pronunciation_tests/warcraft
+  python review_pronunciations.py                                   # every test folder under the test folder (OS temp)
+  python review_pronunciations.py /tmp/bardoro/pronunciation_tests/warcraft
   python review_pronunciations.py warcraft                          # a test folder by glossary name
   python review_pronunciations.py warcraft --shuffle                # randomise which clip plays first (blind test)
   python review_pronunciations.py warcraft --redo                   # ask again about words already decided
@@ -38,7 +38,9 @@ from pathlib import Path
 from epub_to_kokoro import load_pronunciations
 from play_audio import play
 
-TESTS_DIR = Path(__file__).resolve().parent.parent / "output" / "pronunciation_tests"
+import resources  # noqa: E402
+
+TESTS_DIR = resources.TEST_DIR   # where test_glossary.py writes (OS temp folder)
 PAUSE_BETWEEN_CLIPS = 0.4
 REVIEWED = "reviewed"  # clips in a folder with this name are finished with and ignored
 
@@ -191,7 +193,7 @@ def review_dir(folder, args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("tests", nargs="*", metavar="TEST_DIR",
-                    help="test folder or glossary name (default: every folder in output/pronunciation_tests)")
+                    help="test folder or glossary name (default: every folder in the OS temp test folder)")
     ap.add_argument("--shuffle", action="store_true", help="randomise which clip plays first, per word (blind test)")
     ap.add_argument("--shuffle-words", action="store_true", help="randomise the order of the words")
     ap.add_argument("--show-respelling", action="store_true", help="print the respelling next to each word")

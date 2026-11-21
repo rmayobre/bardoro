@@ -262,7 +262,7 @@ pronunciation files.
 | `--pitch X`, `--tempo X` | Used with `--fx` (same defaults as the converter). |
 | `--sentence TEXT` | Custom test sentence; `{word}` is replaced (default: "The name {word} echoed through the hall."). |
 | `--max N` | Limit when testing a whole file (default 20). |
-| `--out-dir DIR` | Where the test clips go (default `output/pronunciation_tests`, git-ignored). |
+| `--out-dir DIR` | Where the test clips go (default: the OS temp folder, `<tmp>/bardoro/pronunciation_tests`). |
 
 ### `scripts/test_glossary.py [GLOSSARY ...]`
 
@@ -279,7 +279,7 @@ respellings that sound wrong. Clips are reused on reruns; a changed respelling g
 | `--list` | Show what would be tested; no server needed. |
 | `--url`, `--voice`, `--speed`, `--pitch`, `--tempo`, `--sentence` | Same as `test_pronunciation.py`. |
 | `--no-fx` | Skip the deep-voice processing (it is on by default so clips match a real run). |
-| `--out-dir DIR` | Default `output/pronunciation_tests` (git-ignored); output is `<dir>/<glossary>/<glossary>_review.flac` and `.txt`. |
+| `--out-dir DIR` | Default: the OS temp folder, `<tmp>/bardoro/pronunciation_tests`; output is `<dir>/<glossary>/<glossary>_review.flac` and `.txt`. |
 
 ### `scripts/review_pronunciations.py [TEST_DIR ...]`
 
@@ -298,7 +298,7 @@ instead of re-rendering).
 
 | Flag | Meaning |
 |---|---|
-| `TEST_DIR` | A folder in `output/pronunciation_tests/` or a glossary name. Default: all of them. |
+| `TEST_DIR` | A folder in `<tmp>/bardoro/pronunciation_tests/` or a glossary name. Default: all of them. |
 | `--shuffle` | Randomise which clip plays first (a blind test). `--shuffle-words` randomises the word order. |
 | `--show-respelling` | Print the respelling next to each word. |
 | `--redo` | Ask again about words already decided, including their clips in `reviewed/`. |

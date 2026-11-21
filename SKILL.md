@@ -11,7 +11,8 @@ Skill layout:
 - `scripts/make-audiobook.sh EPUB SLUG [--glossary FILE]... [--output-dir DIR] [--list] [--url URL] [-- extra converter args]` is the two-phase wrapper. Phase 1 writes `<outdir>/SLUG_work/words.csv` and stops. Running it again does phase 2 and writes `<outdir>/SLUG.m4b`. `<outdir>` is the current directory unless `--output-dir` is given. `SLUG_work/` holds the working files (`words.csv`, `chapters/`, `convert.log`, `voice_settings.json`) and is kept after the run so fixes can be redone cheaply.
 - `scripts/find_unknown_words.py`, `scripts/epub_to_kokoro.py`, `scripts/test_pronunciation.py`, `scripts/update_glossary.py` are the underlying tools.
 - `glossaries/<series>.csv` holds shared pronunciations (`word,pronunciation`); `<outdir>/SLUG_work/words.csv` holds one book's (`word,count,pronunciation`).
-- `voices/` holds voice profiles (JSON); `books/` is a convenient place for epubs.
+- `voices/` holds voice profiles (JSON). Glossaries and voice profiles are looked up in two places: the user's current directory (`./glossaries`, `./voices`) first, then this skill's own folders. A local file wins over a shared one of the same name, and `--glossary NAME` / `--profile NAME` accept bare names. `python scripts/resources.py where` shows the folders searched.
+- The epub is looked for in the current directory and `./books` (a bare file name works; `python scripts/resources.py epubs` lists what is there).
 - `tests/smoke_test.sh` checks the toolchain against a fake server.
 
 ## 1. Collect inputs before doing any work
@@ -20,7 +21,7 @@ Ask with AskUserQuestion (up to four questions per call; use a second call or pl
 
 **Required**
 - Where this skill's directory is, if it is not the working directory (ask once). If the scripts cannot be found, say so; do not rewrite them from memory.
-- Path to the epub, and a short slug for the output folder (for example `brothers-war`).
+- The epub: first list the `.epub` files in the working directory and `./books` (`python scripts/resources.py epubs`) and offer them as choices; ask for a path only if none are found. Then a short slug for the output folder (for example `brothers-war`).
 - Output folder: where the finished `.m4b` and the `<slug>_work/` working folder go. Default to the current directory and offer to change it (pass `--output-dir DIR`). Use that folder for every `<slug>_work/` path below.
 - Kokoro server URL (never assume `localhost:8880`; the user may have `KOKORO_URL` set, so confirm it).
 
@@ -29,10 +30,10 @@ Ask with AskUserQuestion (up to four questions per call; use a second call or pl
 - Pronunciations the user already knows, and any official audiobook, wiki or glossary they trust.
 - Accent preference for names, if it matters.
 - Anything to skip or treat specially.
-- Whether a series glossary already exists in `glossaries/` to reuse (list the folder and offer the match).
+- Whether a series glossary already exists to reuse: list `./glossaries` and the skill's `glossaries/` (`python scripts/test_glossary.py --list` or `ls`) and offer the match. Mention which one is local and which is shared.
 
 **Settings, offering defaults** (accept "defaults"):
-- Voice profile: list them with `python scripts/voice_profiles.py list` and pass `--profile NAME` to the wrapper (a profile is a JSON file in `voices/`; flags override it). Without one, the built-in defaults below apply.
+- Voice profile: list them with `python scripts/voice_profiles.py list` (shows local and shared ones; new profiles are saved to `./voices`, or the skill's with `--shared`) and pass `--profile NAME` to the wrapper (a profile is a JSON file in `voices/`; flags override it). Without one, the built-in defaults below apply.
 - Voice: default is the server blend `am_onyx(4)+am_adam(1)`; plain `am_onyx` if the server rejects blends.
 - Tempo: default `0.90`; `0.88` is noticeably slower. Keep the server speed at 1.0.
 - Skip the deep-voice post-processing (`--no-fx`)?

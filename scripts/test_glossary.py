@@ -7,7 +7,7 @@ deep-voice processing as a real run), then joins the clips into ONE review file 
 plus a timestamped index so you can jump to a word and note which ones sound wrong.
 
 Usage:
-  python test_glossary.py                                  # every glossaries/*.csv
+  python test_glossary.py                                  # every glossary in ./glossaries and the skill's glossaries/
   python test_glossary.py ../glossaries/warcraft.csv       # one glossary
   python test_glossary.py warcraft --words Jaina Muradin   # a glossary by name, only some words
   python test_glossary.py warcraft --respelled-only        # skip the "as written" clip of each pair
@@ -39,21 +39,19 @@ from epub_to_kokoro import (add_voice_args, build_filter, concat_line, fmt_secs,
 from test_pronunciation import DEFAULT_SENTENCE, slug
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-GLOSSARY_DIR = REPO_ROOT / "glossaries"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import resources  # noqa: E402
 DEFAULT_OUT_DIR = REPO_ROOT / "output" / "pronunciation_tests"
 PAUSE_WITHIN = 0.6   # seconds between the as-written and respelled clip
 PAUSE_BETWEEN = 1.4  # seconds between words
 
 
 def resolve_glossary(arg):
-    """Accept a path, or a bare name such as 'warcraft' (looked up in glossaries/)."""
-    p = Path(arg)
-    if p.exists():
-        return p
-    for cand in (GLOSSARY_DIR / arg, GLOSSARY_DIR / f"{arg}.csv"):
-        if cand.exists():
-            return cand
-    sys.exit(f"Glossary not found: {arg}")
+    """Accept a path, or a bare name such as 'warcraft' (looked up in ./glossaries, then the skill's glossaries/)."""
+    found = resources.find_glossary(arg)
+    if found:
+        return found
+    sys.exit(f"Glossary not found: {arg} (looked in {', '.join(str(d) for d in resources.search_dirs('glossaries'))})")
 
 
 def render_clip(text, dest, args):
@@ -152,7 +150,7 @@ def test_glossary(path, args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("glossaries", nargs="*", metavar="GLOSSARY",
-                    help="glossary file or bare name (default: every glossaries/*.csv)")
+                    help="glossary file or bare name (default: every glossary in ./glossaries and the skill's glossaries/)")
     ap.add_argument("--words", nargs="+", metavar="WORD", help="only test these words")
     ap.add_argument("--max", type=int, default=0, help="test at most this many entries (default: all)")
     ap.add_argument("--start", type=int, default=0, help="skip the first N entries")
@@ -171,9 +169,9 @@ def main():
     if not args.list and not args.url:
         sys.exit("No server URL. Pass --url or set KOKORO_URL.")
 
-    paths = [resolve_glossary(g) for g in args.glossaries] or sorted(GLOSSARY_DIR.glob("*.csv"))
+    paths = [resolve_glossary(g) for g in args.glossaries] or [f for f, _ in resources.list_files("glossaries", "*.csv")]
     if not paths:
-        sys.exit(f"No glossaries found in {GLOSSARY_DIR}")
+        sys.exit("No glossaries found in " + ", ".join(str(d) for d in resources.search_dirs("glossaries")))
     for p in paths:
         test_glossary(p, args)
     if not args.list:

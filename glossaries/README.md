@@ -8,6 +8,8 @@ Urza,Er-zuh
 ```
 
 - Use the word exactly as it is written in the books (matching is whole-word and case-sensitive).
+- Glossaries are read from `./glossaries` in your working directory and from this folder (local wins). `--glossary NAME`
+  works for either; a bare name like `warcraft` needs no path.
 - Pass a glossary with `scripts/make-audiobook.sh ... --glossary glossaries/<series>.csv`. A book's own
   `<slug>_work/words.csv` is applied after it and wins on conflicts.
 - See "Maintaining one glossary for a series" in the top-level README for the staging-then-merge workflow and which file wins.

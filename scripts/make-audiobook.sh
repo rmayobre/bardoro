@@ -9,13 +9,15 @@
 # voice settings) are kept in <outdir>/<slug>_work/ so a later run can reuse them: delete one chapter_XX.flac there
 # and rerun to redo just that chapter.
 #
+# EPUB may be a bare file name: it is looked for in the current directory and ./books.
 # usage: scripts/make-audiobook.sh EPUB SLUG [options] [-- extra epub_to_kokoro.py args]
-#   --glossary FILE   shared pronunciations to apply first (repeatable); the book's words.csv always wins
+#   --glossary NAME   glossary file, or a name found in ./glossaries or the skill's glossaries/ 
+#                     (repeatable), applied first; the book's words.csv always wins
 #   --url URL         Kokoro server URL (default: $KOKORO_URL)
 #   --output-dir DIR  where the .m4b and <slug>_work/ go (default: current directory)
 #   --list            only preview which sections would be read
 #   --refresh         regenerate words.csv even if it exists (overwrites it!)
-#   --profile NAME    voice profile from voices/ (see --list-profiles); flags after -- override it
+#   --profile NAME    voice profile from ./voices or the skill's voices/ (see --list-profiles); flags after -- override it
 #   --list-profiles   show the available voice profiles and exit
 #
 # examples:
@@ -31,7 +33,7 @@ if [ "${1:-}" = "--list-profiles" ]; then
   [ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
   exec python "$TOOLS/voice_profiles.py" list
 fi
-if [ $# -lt 2 ]; then sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 1; fi
+if [ $# -lt 2 ]; then sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 1; fi
 EPUB="$1"; SLUG="$2"; shift 2
 
 URL="${KOKORO_URL:-}"; GLOSSARIES=(); LIST=0; REFRESH=0; PROFILE=""; OUTDIR="$PWD"; EXTRA=()
@@ -48,8 +50,17 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -f "$EPUB" ] || { echo "Epub not found: $EPUB" >&2; exit 1; }
 [ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
+# the epub is looked for as given, then in the current directory and ./books (with or without .epub)
+if [ ! -f "$EPUB" ]; then
+  FOUND="$(python "$TOOLS/resources.py" epub "$EPUB" || true)"
+  if [ -z "$FOUND" ]; then
+    echo "Epub not found: $EPUB (looked in $PWD and $PWD/books)" >&2
+    python "$TOOLS/resources.py" epubs | sed 's/^/  available: /' >&2
+    exit 1
+  fi
+  EPUB="$FOUND"
+fi
 command -v ffmpeg >/dev/null || { echo "ffmpeg is required but not on PATH" >&2; exit 1; }
 
 OUT="$OUTDIR/${SLUG}_work"
@@ -82,7 +93,15 @@ if [ -z "$URL" ]; then
 fi
 
 PRON=()
-for g in ${GLOSSARIES[@]+"${GLOSSARIES[@]}"}; do PRON+=("$g"); done
+for g in ${GLOSSARIES[@]+"${GLOSSARIES[@]}"}; do
+  # a glossary is a path, or a name found in ./glossaries or the skill's glossaries/
+  if [ -f "$g" ]; then PRON+=("$g")
+  else
+    FOUND="$(python "$TOOLS/resources.py" glossary "$g" || true)"
+    [ -n "$FOUND" ] || { echo "Glossary not found: $g (looked in ./glossaries and $ROOT/glossaries)" >&2; exit 1; }
+    PRON+=("$FOUND")
+  fi
+done
 PRON+=("$WORDS")
 
 exec python "$TOOLS/epub_to_kokoro.py" "$EPUB" \

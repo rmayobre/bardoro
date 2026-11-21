@@ -339,7 +339,7 @@ Merges a book's pronunciations, or a staging glossary, into a shared series glos
 ```
 SKILL.md          the Claude skill (entry point)
 scripts/            the scripts above, requirements.txt
-glossaries/       shared pronunciations per series (tracked in git)
+glossaries/       shared pronunciations per series (tracked in git); ./glossaries in your working folder is searched first
 books/            your epubs (git-ignored)
 <slug>.m4b          written to the current directory (or --output-dir), git-ignored
 <slug>_work/      words.csv (tracked), chapters/ and logs, next to the .m4b (keep it to redo chapters)

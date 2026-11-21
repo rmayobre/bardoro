@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Voice profiles: named sets of voice settings kept as small JSON files in the voices/ folder, so a voice can be
+Voice profiles: named sets of voice settings kept as small JSON files in a voices/ folder (./voices in the current directory, then the skill's own voices/), so a voice can be
 chosen with --profile NAME when making an audiobook (or testing pronunciations) instead of retyping flags.
 
 A profile is a JSON file voices/NAME.json. Every key is optional; anything left out uses the built-in default:
@@ -17,7 +17,7 @@ A profile is a JSON file voices/NAME.json. Every key is optional; anything left 
 Settings are chosen in this order: a flag on the command line, then the profile, then the built-in default.
 
 Usage:
-  python voice_profiles.py list                                 # profiles in voices/ and their settings
+  python voice_profiles.py list                                 # profiles from ./voices and the skill's voices/
   python voice_profiles.py show deep-narrator
   python voice_profiles.py new gravel --voice am_michael --pitch 0.9 --description "Rougher, deeper"
   python voice_profiles.py new gravel2 --from gravel --tempo 0.85    # start from an existing profile
@@ -33,7 +33,10 @@ DEFAULT_PITCH = 0.94    # <1 lowers pitch (0.94 is about -1 semitone)
 DEFAULT_TEMPO = 0.90    # final playback speed after the pitch change
 BASS_GAIN_DB = 4        # low-shelf boost around 150 Hz
 
-VOICES_DIR = Path(__file__).resolve().parent.parent / "voices"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import resources  # noqa: E402
+
+VOICES_DIR = resources.SKILL_DIR / "voices"   # shared profiles shipped with the skill
 BUILTIN = {"voice": DEFAULT_VOICE, "speed": 1.0, "pitch": DEFAULT_PITCH, "tempo": DEFAULT_TEMPO,
            "bass_db": BASS_GAIN_DB, "fx": True}
 NUMBERS = ("speed", "pitch", "tempo", "bass_db")
@@ -49,11 +52,12 @@ def profile_path(name):
     p = Path(name)
     if p.suffix.lower() == ".json" and p.is_file():
         return p
-    cand = VOICES_DIR / f"{name}.json"
-    if cand.is_file():
-        return cand
-    names = ", ".join(sorted(f.stem for f in VOICES_DIR.glob("*.json"))) or "none yet"
-    _fail(f"no profile named {name!r} in {VOICES_DIR} (available: {names})")
+    found = resources.find_voice(name)
+    if found:
+        return found
+    names = ", ".join(sorted({f.stem for f, _ in resources.list_files("voices", "*.json")})) or "none yet"
+    where = " or ".join(str(d) for d in resources.search_dirs("voices"))
+    _fail(f"no profile named {name!r} in {where} (available: {names})")
 
 
 def validate(data, where):
@@ -85,13 +89,14 @@ def load_profile(name):
 
 
 def list_profiles():
-    """{name: settings} for every voices/*.json, in name order."""
-    return {f.stem: load_profile(f) for f in sorted(VOICES_DIR.glob("*.json"))}
+    """{name: (settings, origin)} for every voices/*.json in ./voices and the skill's voices/; local wins."""
+    found = sorted(resources.list_files("voices", "*.json"), key=lambda t: t[0].stem)
+    return {f.stem: (load_profile(f), origin) for f, origin in found}
 
 
 def add_voice_args(ap, opt_in_fx=False):
     """Add --profile and the voice flags to a parser. Defaults are None so resolve_voice can tell what was typed."""
-    ap.add_argument("--profile", metavar="NAME", help="voice profile from voices/ (or a path to a profile .json); "
+    ap.add_argument("--profile", metavar="NAME", help="voice profile from ./voices or the skill's voices/ (or a path to a profile .json); "
                     "flags below override it")
     ap.add_argument("--voice", help=f"Kokoro voice or blend (default {DEFAULT_VOICE})")
     ap.add_argument("--speed", type=float, help="server-side speed (keep near 1.0)")
@@ -143,10 +148,10 @@ def describe(name, data):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("list", help="list the profiles in voices/")
+    sub.add_parser("list", help="list the profiles in ./voices and the skill's voices/")
     sh = sub.add_parser("show", help="show one profile")
     sh.add_argument("name")
-    nw = sub.add_parser("new", help="create voices/NAME.json")
+    nw = sub.add_parser("new", help="create ./voices/NAME.json (or the skill's voices/ with --shared)")
     nw.add_argument("name", help="letters, digits, '-' and '_' only")
     nw.add_argument("--from", dest="base", metavar="PROFILE", help="copy this profile first, then apply the flags")
     nw.add_argument("--description")
@@ -154,15 +159,16 @@ def main():
     for k in NUMBERS:
         nw.add_argument(f"--{k.replace('_', '-')}", type=float, dest=k)
     nw.add_argument("--fx", choices=["on", "off"])
+    nw.add_argument("--shared", action="store_true", help="save into the skill's own voices/ folder instead of ./voices")
     nw.add_argument("--force", action="store_true", help="overwrite an existing profile")
     args = ap.parse_args()
 
     if args.cmd == "list":
         profiles = list_profiles()
         if not profiles:
-            print(f"No profiles in {VOICES_DIR}. Create one with: voice_profiles.py new NAME --voice ...")
-        for name, data in profiles.items():
-            print(describe(name, data))
+            print("No profiles found. Create one with: voice_profiles.py new NAME --voice ...")
+        for name, (data, origin) in profiles.items():
+            print(describe(name, data) + (f"  [{origin}]" if origin == "local" and len(resources.search_dirs("voices")) > 1 else ""))
         print(f"\nBuilt-in defaults (no --profile): {describe('defaults', {})}")
     elif args.cmd == "show":
         path = profile_path(args.name)
@@ -170,7 +176,8 @@ def main():
     else:
         if not args.name.replace("-", "").replace("_", "").isalnum():
             _fail("name may contain only letters, digits, '-' and '_'")
-        dest = VOICES_DIR / f"{args.name}.json"
+        vdir = VOICES_DIR if args.shared else Path.cwd() / "voices"
+        dest = vdir / f"{args.name}.json"
         if dest.exists() and not args.force:
             _fail(f"{dest} already exists (use --force to overwrite)")
         data = dict(load_profile(args.base)) if args.base else {}
@@ -180,7 +187,7 @@ def main():
         if args.fx:
             data["fx"] = args.fx == "on"
         validate(data, dest.name)
-        VOICES_DIR.mkdir(exist_ok=True)
+        vdir.mkdir(parents=True, exist_ok=True)
         dest.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"Wrote {dest}\n{describe(args.name, data)}")
 

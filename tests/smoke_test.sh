@@ -63,6 +63,21 @@ mkdir -p "$TMP/elsewhere"
 "$W" "$EPUB" other --output-dir "$TMP/elsewhere" >/dev/null 2>&1 || true
 test -f "$TMP/elsewhere/other_work/words.csv" && ! test -e "$TMP/other_work" || { echo "--output-dir not honoured"; exit 1; }
 
+echo "== epub, glossaries and voices are found in the working directory as well as the skill folder"
+mkdir -p "$TMP/proj/books" "$TMP/proj/glossaries" "$TMP/proj/voices" "$TMP/scripts/../glossaries"
+cp "$EPUB" "$TMP/proj/books/local.epub"
+printf 'word,pronunciation\nMishra,Local-ruh\n' > "$TMP/proj/glossaries/loc.csv"
+printf 'word,pronunciation\nMishra,Skill-ruh\nUrza,Er-zuh\n' > "$TMP/glossaries/shared.csv"
+mkdir -p "$TMP/voices"; printf '{"voice": "skill_voice"}\n' > "$TMP/voices/test.json"   # shared profile
+printf '{"voice": "local_voice"}\n' > "$TMP/proj/voices/test.json"          # same name as the skill's "test": local wins
+(cd "$TMP/proj" && "$W" local smoke2 --glossary loc --glossary shared >/dev/null 2>&1 || true)
+test -f "$TMP/proj/smoke2_work/words.csv" || { echo "epub not found by bare name in ./books"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/resources.py" glossary loc | grep -q "proj/glossaries/loc.csv") || { echo "local glossary not found"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/resources.py" glossary shared | grep -q "$TMP/glossaries/shared.csv") || { echo "skill glossary not found"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/voice_profiles.py" show test | grep -q local_voice) || { echo "local voice profile did not win"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/voice_profiles.py" list | grep -q "^test: voice local_voice") || { echo "voice list wrong"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/test_glossary.py" --list | grep -q "shared") || { echo "test_glossary does not see skill glossaries"; exit 1; }
+
 echo "== a book started before the rename (names.csv) is migrated, not regenerated"
 mv "$TMP/smoke_work/words.csv" "$TMP/smoke_work/names.csv"
 "$W" "$EPUB" smoke --glossary "$TMP/gloss.csv" -- --tempo 0.9 > "$TMP/migrate.out"

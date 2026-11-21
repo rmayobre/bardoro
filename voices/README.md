@@ -1,6 +1,8 @@
 # Voice profiles
 
-One JSON file per voice. Pick one when making a book:
+One JSON file per voice. Profiles are read from `./voices` in your working directory and from this folder; a local
+profile with the same name wins. `voice_profiles.py new` saves to `./voices` (add `--shared` to save here).
+Pick one when making a book:
 
 ```bash
 scripts/make-audiobook.sh "books/Some Book.epub" some-book --profile deep-narrator

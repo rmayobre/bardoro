@@ -28,11 +28,14 @@ scripts/
   review_pronunciations.py plays test clips two at a time and writes the chosen result back to the glossary
   play_audio.py            cross-platform audio player (ffplay, mpv, VLC, afplay, pw-play, ...)
   voice_profiles.py        voice profile loader/CLI (voices/*.json); shared by the converter and test scripts
+  resources.py             finds glossaries, voices and epubs in the working directory and the skill folder
   update_glossary.py       merges a book's pronunciations into a shared series glossary
   make-audiobook.sh        two-phase wrapper tying the above together
   requirements.txt         Python dependencies (ffmpeg/ffprobe come from the OS)
-voices/                    voice profiles, one JSON per voice (tracked); chosen with --profile NAME
+voices/                    shared voice profiles, one JSON per voice (tracked); chosen with --profile NAME
 glossaries/                shared pronunciations per series (tracked), e.g. magic-the-gathering.csv
+                           (both are also read from ./voices and ./glossaries in the working directory, which win;
+                            scripts/resources.py does the lookup, and the epub is found in . or ./books)
 books/                     source epubs (git-ignored; copyrighted)
 <outdir>/<slug>.m4b      finished audiobook; <outdir> is the current directory or --output-dir (git-ignored)
 <outdir>/<slug>_work/    per book: words.csv (TRACKED), chapters/, convert.log (kept so chapters can be redone)

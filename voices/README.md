@@ -29,5 +29,5 @@ Every key is optional; anything left out uses the built-in default.
 Settings are chosen in this order: a command-line flag (`--voice`, `--pitch`, `--tempo`, `--bass`, `--speed`,
 `--no-fx`), then the profile, then the built-in default. The file name (without `.json`) is the profile name.
 
-The settings used for a book are recorded in `output/<slug>/chapters/voice_settings.json`. If you rerun with
+The settings used for a book are recorded in `<slug>_work/chapters/voice_settings.json`. If you rerun with
 different settings, the converter warns you, because chapters already finished keep the old voice.

@@ -8,10 +8,10 @@ description: Turn an epub into a chaptered audiobook with Kokoro: find unusual n
 Builds one chaptered `.m4b` from an epub through a Kokoro-FastAPI server, after fixing how invented names and unusual words are pronounced. This directory is the skill; all paths below are relative to it (see `AGENTS.md` for contributor notes).
 
 Skill layout:
-- `scripts/make-audiobook.sh EPUB SLUG [--glossary FILE]... [--list] [--url URL] [-- extra converter args]` is the two-phase wrapper. Phase 1 writes `output/SLUG/words.csv` and stops. Running it again does phase 2 and writes `output/SLUG/SLUG.m4b`.
+- `scripts/make-audiobook.sh EPUB SLUG [--glossary FILE]... [--output-dir DIR] [--list] [--url URL] [-- extra converter args]` is the two-phase wrapper. Phase 1 writes `<outdir>/SLUG_work/words.csv` and stops. Running it again does phase 2 and writes `<outdir>/SLUG.m4b`. `<outdir>` is the current directory unless `--output-dir` is given. `SLUG_work/` holds the working files (`words.csv`, `chapters/`, `convert.log`, `voice_settings.json`) and is kept after the run so fixes can be redone cheaply.
 - `scripts/find_unknown_words.py`, `scripts/epub_to_kokoro.py`, `scripts/test_pronunciation.py`, `scripts/update_glossary.py` are the underlying tools.
-- `glossaries/<series>.csv` holds shared pronunciations (`word,pronunciation`); `output/SLUG/words.csv` holds one book's (`word,count,pronunciation`).
-- `voices/` holds voice profiles (JSON); `books/` and `output/` are working folders for epubs and results.
+- `glossaries/<series>.csv` holds shared pronunciations (`word,pronunciation`); `<outdir>/SLUG_work/words.csv` holds one book's (`word,count,pronunciation`).
+- `voices/` holds voice profiles (JSON); `books/` is a convenient place for epubs.
 - `tests/smoke_test.sh` checks the toolchain against a fake server.
 
 ## 1. Collect inputs before doing any work
@@ -21,6 +21,7 @@ Ask with AskUserQuestion (up to four questions per call; use a second call or pl
 **Required**
 - Where this skill's directory is, if it is not the working directory (ask once). If the scripts cannot be found, say so; do not rewrite them from memory.
 - Path to the epub, and a short slug for the output folder (for example `brothers-war`).
+- Output folder: where the finished `.m4b` and the `<slug>_work/` working folder go. Default to the current directory and offer to change it (pass `--output-dir DIR`). Use that folder for every `<slug>_work/` path below.
 - Kokoro server URL (never assume `localhost:8880`; the user may have `KOKORO_URL` set, so confirm it).
 
 **Book context (this is what makes the pronunciations good)**
@@ -47,7 +48,7 @@ Ask with AskUserQuestion (up to four questions per call; use a second call or pl
 scripts/make-audiobook.sh "<epub>" <slug> --glossary glossaries/<series>.csv
 ```
 
-This writes `output/<slug>/words.csv` and stops. If it already exists, keep it (use `--refresh` only if the user asks, because it overwrites their work). Read the list. Rare but real English words (archaic or technical terms) usually need no change; names, places and invented terms are the focus.
+This writes `<outdir>/<slug>_work/words.csv` and stops. If it already exists, keep it (use `--refresh` only if the user asks, because it overwrites their work). Read the list. Rare but real English words (archaic or technical terms) usually need no change; names, places and invented terms are the focus.
 
 ## 4. Fill in pronunciations
 
@@ -62,7 +63,7 @@ Show the user a compact table of word → respelling, with uncertain entries mar
 Optional spot check when the server is reachable:
 
 ```bash
-python scripts/test_pronunciation.py --pronunciations output/<slug>/words.csv --max 10 --fx
+python scripts/test_pronunciation.py --pronunciations <slug>_work/words.csv --max 10 --fx
 ```
 
 It writes each word as written and respelled into `output/pronunciation_tests/`; send the clips to the user and adjust.
@@ -86,15 +87,16 @@ Then run the same wrapper command again (with `--url` or `KOKORO_URL`, the gloss
 scripts/make-audiobook.sh "<epub>" <slug> --glossary glossaries/<series>.csv --url <url> -- --tempo 0.9
 ```
 
-- It is long-running (large books take many minutes to hours). Run it in the background or with a long timeout and check progress. It prints timestamped, flushed progress (per chunk, per chapter, with an ETA) and also writes `output/<slug>/chapters/convert.log` (override with `-- --log FILE`); `tail -f` that file.
+- It is long-running (large books take many minutes to hours). Run it in the background or with a long timeout and check progress. It prints timestamped, flushed progress (per chunk, per chapter, with an ETA) and also writes `<slug>_work/chapters/convert.log` (override with `-- --log FILE`); `tail -f` that file.
 - It is resumable: finished chapters are skipped and in-progress chunks reused, so rerun the same command after an interruption.
-- New pronunciations only affect chapters generated afterwards. To redo a chapter, delete its `output/<slug>/chapters/chapter_XX.flac` and rerun.
+- New pronunciations only affect chapters generated afterwards. To redo a chapter, delete its `<slug>_work/chapters/chapter_XX.flac` and rerun.
 - If the server rejects the voice, rerun with `-- --voice am_onyx`. If synthesis keeps failing, report the server's error instead of looping.
 
 ## 6. Finish
 
 - Send the finished `.m4b` and the final `words.csv` with SendUserFile. If the file is too large to send, say where it is.
-- Offer to save the new pronunciations for the next book in the series: `python scripts/update_glossary.py output/<slug>/words.csv glossaries/<series>.csv`.
+- Tell the user where the working files are (`<outdir>/<slug>_work/`) and keep them: if they are unhappy with the result, change `words.csv`, delete just the affected `chapters/chapter_XX.flac` files, and rerun the same command; every other chapter is reused.
+- Offer to save the new pronunciations for the next book in the series: `python scripts/update_glossary.py <slug>_work/words.csv glossaries/<series>.csv`.
 - Summarize in two or three lines: sections read, pronunciations applied, and any words left uncertain.
 - End with a "Sources:" list of the pages used to confirm pronunciations, as markdown links.
 

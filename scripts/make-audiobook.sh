@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # Two-phase wrapper around the audiobook tools.
 #
-#   Phase 1 (first run for a book): finds unrecognised words and writes output/<slug>/words.csv, then stops
-#           so you can fill in the pronunciation column.
-#   Phase 2 (run it again):         converts the epub with those pronunciations into output/<slug>/<slug>.m4b.
+#   Phase 1 (first run for a book): finds unrecognised words and writes <outdir>/<slug>_work/words.csv, then
+#           stops so you can fill in the pronunciation column.
+#   Phase 2 (run it again):         converts the epub with those pronunciations into <outdir>/<slug>.m4b.
+#
+# <outdir> is the current directory unless --output-dir is given. Working files (words.csv, chapters/, the log and
+# voice settings) are kept in <outdir>/<slug>_work/ so a later run can reuse them: delete one chapter_XX.flac there
+# and rerun to redo just that chapter.
 #
 # usage: scripts/make-audiobook.sh EPUB SLUG [options] [-- extra epub_to_kokoro.py args]
 #   --glossary FILE   shared pronunciations to apply first (repeatable); the book's words.csv always wins
 #   --url URL         Kokoro server URL (default: $KOKORO_URL)
+#   --output-dir DIR  where the .m4b and <slug>_work/ go (default: current directory)
 #   --list            only preview which sections would be read
 #   --refresh         regenerate words.csv even if it exists (overwrites it!)
 #   --profile NAME    voice profile from voices/ (see --list-profiles); flags after -- override it
@@ -26,10 +31,10 @@ if [ "${1:-}" = "--list-profiles" ]; then
   [ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
   exec python "$TOOLS/voice_profiles.py" list
 fi
-if [ $# -lt 2 ]; then sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 1; fi
+if [ $# -lt 2 ]; then sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 1; fi
 EPUB="$1"; SLUG="$2"; shift 2
 
-URL="${KOKORO_URL:-}"; GLOSSARIES=(); LIST=0; REFRESH=0; PROFILE=""; EXTRA=()
+URL="${KOKORO_URL:-}"; GLOSSARIES=(); LIST=0; REFRESH=0; PROFILE=""; OUTDIR="$PWD"; EXTRA=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --glossary) GLOSSARIES+=("$2"); shift 2 ;;
@@ -37,6 +42,7 @@ while [ $# -gt 0 ]; do
     --list)     LIST=1; shift ;;
     --refresh)  REFRESH=1; shift ;;
     --profile)  PROFILE="$2"; shift 2 ;;
+    --output-dir) OUTDIR="$2"; shift 2 ;;
     --)         shift; EXTRA=("$@"); break ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -46,7 +52,7 @@ done
 [ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
 command -v ffmpeg >/dev/null || { echo "ffmpeg is required but not on PATH" >&2; exit 1; }
 
-OUT="$ROOT/output/$SLUG"
+OUT="$OUTDIR/${SLUG}_work"
 WORDS="$OUT/words.csv"
 mkdir -p "$OUT"
 # books started before the rename have names.csv: move it so their respellings keep working
@@ -83,6 +89,6 @@ exec python "$TOOLS/epub_to_kokoro.py" "$EPUB" \
   --url "$URL" \
   --pronunciations "${PRON[@]}" \
   --work "$OUT/chapters" \
-  --out "$OUT/$SLUG.m4b" \
+  --out "$OUTDIR/$SLUG.m4b" \
   ${PROFILE:+--profile "$PROFILE"} \
   ${EXTRA[@]+"${EXTRA[@]}"}

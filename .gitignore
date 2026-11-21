@@ -30,3 +30,8 @@ glossaries/*
 !glossaries/warcraft.csv
 !glossaries/magic-the-gathering.csv
 */__pycache__/*
+
+# Converted audiobooks and working files land in whatever folder the wrapper is run from
+*.m4b
+*_work/*
+!*_work/words.csv

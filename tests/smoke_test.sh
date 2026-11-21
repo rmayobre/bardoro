@@ -30,21 +30,21 @@ EPUB="$TMP/The Brothers' War - Smoke (2000).epub"
 python "$ROOT/tests/fake_kokoro_server.py" $PORT "$TMP/requests.log" & SERVER_PID=$!
 sleep 1
 export KOKORO_URL="http://127.0.0.1:$PORT"
-cd "$TMP"; mkdir -p scripts output; cp -r "$ROOT/scripts/." scripts/   # run against a scratch copy of the repo layout
+cd "$TMP"; mkdir -p scripts; cp -r "$ROOT/scripts/." scripts/   # run against a scratch copy of the repo layout
 W="$TMP/scripts/make-audiobook.sh"
 
 echo "== phase 1: find unknown words"
 "$W" "$EPUB" smoke --glossary "$TMP/gloss.csv" 2>&1 | tail -3 || true
-test -f "$TMP/output/smoke/words.csv"
-grep -q "Urza" "$TMP/output/smoke/words.csv"
+test -f "$TMP/smoke_work/words.csv"
+grep -q "Urza" "$TMP/smoke_work/words.csv"
 
 printf 'word,pronunciation\nMishra,Mish-ruh\n' > "$TMP/gloss.csv"
-sed -i 's/^Urza,\([0-9]*\),$/Urza,\1,Er-zuh/' "$TMP/output/smoke/words.csv"
+sed -i 's/^Urza,\([0-9]*\),$/Urza,\1,Er-zuh/' "$TMP/smoke_work/words.csv"
 
 echo "== phase 2: convert"
 "$W" "$EPUB" smoke --glossary "$TMP/gloss.csv" -- --tempo 0.9
 
-M4B="$TMP/output/smoke/smoke.m4b"
+M4B="$TMP/smoke.m4b"
 test -s "$M4B"
 CH=$(ffprobe -v error -show_chapters -of csv=p=0 "$M4B" | wc -l)
 [ "$CH" -eq 3 ] || { echo "expected 3 chapters, got $CH"; exit 1; }
@@ -58,15 +58,20 @@ N1=$(wc -l < "$TMP/requests.log")
 N2=$(wc -l < "$TMP/requests.log")
 [ "$N1" -eq "$N2" ] || { echo "resume re-synthesized chapters"; exit 1; }
 
+echo "== --output-dir puts the .m4b and working files elsewhere"
+mkdir -p "$TMP/elsewhere"
+"$W" "$EPUB" other --output-dir "$TMP/elsewhere" >/dev/null 2>&1 || true
+test -f "$TMP/elsewhere/other_work/words.csv" && ! test -e "$TMP/other_work" || { echo "--output-dir not honoured"; exit 1; }
+
 echo "== a book started before the rename (names.csv) is migrated, not regenerated"
-mv "$TMP/output/smoke/words.csv" "$TMP/output/smoke/names.csv"
+mv "$TMP/smoke_work/words.csv" "$TMP/smoke_work/names.csv"
 "$W" "$EPUB" smoke --glossary "$TMP/gloss.csv" -- --tempo 0.9 > "$TMP/migrate.out"
 grep -q "Renamed" "$TMP/migrate.out"
-test -f "$TMP/output/smoke/words.csv" && ! test -f "$TMP/output/smoke/names.csv"
-grep -q "Urza,[0-9]*,Er-zuh" "$TMP/output/smoke/words.csv"
+test -f "$TMP/smoke_work/words.csv" && ! test -f "$TMP/smoke_work/names.csv"
+grep -q "Urza,[0-9]*,Er-zuh" "$TMP/smoke_work/words.csv"
 
 echo "== update_glossary"
-python "$TMP/scripts/update_glossary.py" "$TMP/output/smoke/words.csv" "$TMP/gloss.csv" > "$TMP/glossary.out"
+python "$TMP/scripts/update_glossary.py" "$TMP/smoke_work/words.csv" "$TMP/gloss.csv" > "$TMP/glossary.out"
 head -1 "$TMP/glossary.out"
 grep -q "Urza,Er-zuh" "$TMP/gloss.csv"
 
@@ -82,7 +87,7 @@ echo "== blank second column = keep Kokoro's pronunciation"
 printf 'Blankword,\nBareword\n' >> "$TMP/gloss.csv"
 python "$TMP/scripts/test_glossary.py" "$TMP/gloss.csv" --out-dir "$TMP/gtests" > "$TMP/tg.out"
 grep -q "2 blank entries skipped" "$TMP/tg.out"
-python "$TMP/scripts/update_glossary.py" "$TMP/output/smoke/words.csv" "$TMP/gloss.csv" >/dev/null
+python "$TMP/scripts/update_glossary.py" "$TMP/smoke_work/words.csv" "$TMP/gloss.csv" >/dev/null
 grep -q "^Blankword,$" "$TMP/gloss.csv" || { echo "blank glossary row was lost by update_glossary"; exit 1; }
 
 echo "== play_audio"

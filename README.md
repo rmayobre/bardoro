@@ -24,7 +24,7 @@ book.epub
 epub_to_kokoro.py  ◄───────────────────────────  glossaries/<series>.csv + words.csv
    │  split into chapters → apply respellings → Kokoro server → ffmpeg deep-voice → chapter_XX.flac
    ▼
-output/<slug>/<slug>.m4b   (one file, chapter markers)
+<slug>.m4b   (one file, chapter markers)
 ```
 
 ## Requirements
@@ -54,18 +54,18 @@ The wrapper `scripts/make-audiobook.sh` works in two steps. Run the same command
 ```bash
 cp "/path/to/Some Book.epub" books/
 
-# Step 1: find unusual words and write output/some-book/words.csv, then stop
+# Step 1: find unusual words and write some-book_work/words.csv, then stop
 scripts/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/some-series.csv
 
 # Fill in the pronunciation column for any word that sounds wrong (leave the rest blank).
 # Then listen to a few before committing to the full run:
-python scripts/test_pronunciation.py --pronunciations output/some-book/words.csv --max 10 --fx
+python scripts/test_pronunciation.py --pronunciations some-book_work/words.csv --max 10 --fx
 
 # Step 2: convert (run the exact same command again)
 scripts/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/some-series.csv
 ```
 
-The result is `output/some-book/some-book.m4b`. `--glossary` is optional and can be repeated; the book's own
+The result is `some-book.m4b` in the folder you ran the command from (pass `--output-dir DIR` to put it elsewhere), with the working files in `some-book_work/` beside it. Keep that folder: to fix a chapter, edit `words.csv`, delete the chapter's `.flac` and rerun. `--glossary` is optional and can be repeated; the book's own
 `words.csv` is applied last and wins on conflicts.
 
 Other things you can do with the wrapper:
@@ -78,7 +78,7 @@ scripts/make-audiobook.sh "books/Some Book.epub" some-book --refresh            
 
 ### Fixing pronunciations
 
-Open `output/<slug>/words.csv`:
+Open `<slug>_work/words.csv`:
 
 ```csv
 word,count,pronunciation
@@ -96,11 +96,11 @@ right, since blank rows are ignored.
 - When you finish a book, save its pronunciations for the next one in the series:
 
   ```bash
-  python scripts/update_glossary.py output/some-book/words.csv glossaries/some-series.csv
+  python scripts/update_glossary.py some-book_work/words.csv glossaries/some-series.csv
   ```
 
 New pronunciations only affect chapters generated afterwards. To redo a chapter, delete its
-`output/<slug>/chapters/chapter_XX.flac` and rerun.
+`<slug>_work/chapters/chapter_XX.flac` and rerun.
 
 ### Maintaining one glossary for a series
 
@@ -111,14 +111,14 @@ reviewed by ear, and only then are merged into the main one. This is the workflo
 
 ```bash
 # 1. First book of the series: build the main glossary from its filled-in words.csv, then check it by ear
-python scripts/update_glossary.py output/brothers-war/words.csv glossaries/magic-the-gathering.csv
+python scripts/update_glossary.py brothers-war_work/words.csv glossaries/magic-the-gathering.csv
 python scripts/test_glossary.py magic-the-gathering
 python scripts/review_pronunciations.py magic-the-gathering     # 1 / 2 / r; a pick of clip 1 leaves the row blank
 
 # 2. Next book: find its words. Words the main glossary already covers can stay blank in words.csv;
 #    fill in only the new names. Then save those as a staging glossary.
 scripts/make-audiobook.sh "books/Bloodlines.epub" bloodlines --glossary glossaries/magic-the-gathering.csv
-python scripts/update_glossary.py output/bloodlines/words.csv glossaries/magic-the-gathering-bloodlines.csv
+python scripts/update_glossary.py bloodlines_work/words.csv glossaries/magic-the-gathering-bloodlines.csv
 
 # 3. Review the staging glossary by ear (it is updated as you choose)
 python scripts/test_glossary.py magic-the-gathering-bloodlines
@@ -164,7 +164,7 @@ python scripts/voice_profiles.py new gravel --from deep-narrator --voice am_mich
 Profiles also work with `test_pronunciation.py` and `test_glossary.py` (`--profile NAME`). Settings are chosen in this
 order: a command-line flag, then the profile, then the built-in default. Shipped profiles: `deep-narrator` (the
 default sound) and `plain-onyx` (no post-processing). See `voices/README.md` for the file format. The settings used
-for a book are saved in `output/<slug>/chapters/voice_settings.json`, and the converter warns if a rerun uses different
+for a book are saved in `<slug>_work/chapters/voice_settings.json`, and the converter warns if a rerun uses different
 ones, since finished chapters keep the old voice.
 
 ### Voice and pace
@@ -179,7 +179,7 @@ Defaults: voice blend `am_onyx(4)+am_adam(1)`, pitch `0.94`, tempo `0.90`, bass 
 | `--bass 4` | Low-shelf bass boost in dB. |
 | `--no-fx` | Skip the ffmpeg deep-voice processing. |
 | `--speed 1.0` | Server-side speed. Leave it near 1.0 and use `--tempo` to slow things down. |
-| `--log FILE` | Where to write the progress log. Default: `output/<slug>/chapters/convert.log` (one per book, appended on reruns). |
+| `--log FILE` | Where to write the progress log. Default: `<slug>_work/chapters/convert.log` (one per book, appended on reruns). |
 
 ### Which sections are read
 
@@ -305,7 +305,7 @@ instead of re-rendering).
 | `--apply` | Write the decisions made so far without asking more. |
 | `--dry-run` | Show the glossary changes without writing anything: no glossary edit, no saved choices, no clips moved. |
 
-A book's own `output/<slug>/words.csv` is applied after the glossary and still wins, so edit it too if a book already
+A book's own `<slug>_work/words.csv` is applied after the glossary and still wins, so edit it too if a book already
 carries an old respelling.
 
 ### `scripts/play_audio.py FILE`
@@ -341,7 +341,8 @@ SKILL.md          the Claude skill (entry point)
 scripts/            the scripts above, requirements.txt
 glossaries/       shared pronunciations per series (tracked in git)
 books/            your epubs (git-ignored)
-output/<slug>/    words.csv (tracked), chapters/ and the finished .m4b (git-ignored)
+<slug>.m4b          written to the current directory (or --output-dir), git-ignored
+<slug>_work/      words.csv (tracked), chapters/ and logs, next to the .m4b (keep it to redo chapters)
 tests/            smoke test and a fake Kokoro server
 ```
 

@@ -4,7 +4,7 @@ Merge a finished book's pronunciations into a shared series glossary so the next
 universe starts with them already filled in.
 
 Usage:
-  python update_glossary.py ../output/brothers-war/words.csv ../glossaries/magic-the-gathering.csv
+  python update_glossary.py ../brothers-war_work/words.csv ../glossaries/magic-the-gathering.csv
   python update_glossary.py words.csv glossary.csv --dry-run      # show what would change
   python update_glossary.py words.csv glossary.csv --overwrite     # let the book's entries replace existing ones
 

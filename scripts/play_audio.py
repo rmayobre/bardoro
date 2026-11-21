@@ -8,7 +8,7 @@ SoundPlayer). Players that only handle wav/flac get a temporary wav made with ff
 
 Usage:
   python play_audio.py clip.flac
-  python play_audio.py output/arthas/arthas.m4b --start 1:30:00       # start offset (ffplay, mpv, vlc only)
+  python play_audio.py arthas.m4b --start 1:30:00       # start offset (ffplay, mpv, vlc only)
   python play_audio.py --list-players                                  # what was found on this machine
   AUDIO_PLAYER="mpv --no-video" python play_audio.py clip.flac         # force a player (file path is appended)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-A stand-in for Kokoro-FastAPI used by the smoke test: answers POST /v1/audio/speech with a short FLAC tone
+A stand-in for Kokoro-FastAPI used by the smoke test: answers GET /v1/audio/voices (for check_setup.py) and POST /v1/audio/speech with a short FLAC tone
 whose length depends on the text, and logs every request's text to a file so tests can check what was sent.
 
 usage: python fake_kokoro_server.py PORT REQUEST_LOG
@@ -27,6 +27,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(audio)))
         self.end_headers()
         self.wfile.write(audio)
+
+    def do_GET(self):
+        body = json.dumps({"voices": ["am_onyx", "am_adam"]}).encode()
+        self.send_response(200 if self.path == "/v1/audio/voices" else 404)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, *a):
         pass

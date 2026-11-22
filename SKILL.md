@@ -1,6 +1,6 @@
 ---
 name: bardoro
-description: Turn an epub into a chaptered audiobook with Kokoro: find unusual names, research pronunciations using the user's book context, then run the bundled scripts. Use when the user wants an epub turned into an audiobook, m4b, or text-to-speech narration, or wants names and pronunciations fixed for one.
+description: Turn an epub into a chaptered .m4b audiobook through a Kokoro-FastAPI server: find unusual names, research pronunciations from the user's book context, then run the bundled scripts. Use when the user wants an epub made into an audiobook, m4b or text-to-speech narration, or wants names and pronunciations fixed for one. Needs Python 3.9+, the pip packages in scripts/requirements.txt, ffmpeg/ffprobe on PATH and a reachable Kokoro server URL.
 ---
 
 # Bardoro: epub to Kokoro audiobook
@@ -40,7 +40,8 @@ Ask with AskUserQuestion (up to four questions per call; use a second call or pl
 
 ## 2. Check prerequisites
 
-- Python packages from `scripts/requirements.txt` (`pip install --break-system-packages -r scripts/requirements.txt` if missing) and `ffmpeg`/`ffprobe` on PATH.
+- Run `python3 scripts/check_setup.py` (add `--url <url>` to test the server). It prints `ok` or `MISSING` per item and exits 1 if anything required is missing. It installs nothing.
+- If packages are missing, prefer an isolated environment in the skill folder: `python3 -m venv .venv && . .venv/bin/activate && python -m pip install -r scripts/requirements.txt && python scripts/check_setup.py` (`make-audiobook.sh` uses that `.venv` automatically). Only fall back to `--break-system-packages` if the user agrees. `ffmpeg`/`ffprobe` cannot come from pip: tell the user to install them (`apt install ffmpeg`, `brew install ffmpeg`).
 - Server reachability: `GET <url>/v1/audio/voices`. The workspace network is often restricted and a home-lab server may be unreachable. If the request is refused or times out, do not retry other routes. Prepare everything up to the final command and give the user the exact command to run where the server is reachable, or use a shell on their computer if one is linked.
 
 ## 3. Find the unknown words (phase 1)
@@ -100,6 +101,21 @@ scripts/make-audiobook.sh "<epub>" <slug> --glossary glossaries/<series>.csv --u
 - Offer to save the new pronunciations for the next book in the series: `python scripts/update_glossary.py <slug>_work/words.csv glossaries/<series>.csv`.
 - Summarize in two or three lines: sections read, pronunciations applied, and any words left uncertain.
 - End with a "Sources:" list of the pages used to confirm pronunciations, as markdown links.
+
+## Troubleshooting and exit codes
+
+Every script exits 0 on success and non-zero on failure, with a one-line reason on stderr; none of them deletes or overwrites a finished chapter.
+
+| Message | Meaning and fix |
+|---|---|
+| `Missing Python package 'X'` | Install requirements (step 2), then rerun. |
+| `'ffmpeg' was not found on PATH` | Install ffmpeg; it includes ffprobe. |
+| `Epub not found` / `Could not read ... as an epub` | Wrong path, a corrupt file, or DRM. Ask the user for another copy. |
+| `Invalid server URL` / `No server URL` | Needs `--url` or `KOKORO_URL` starting with `http://` or `https://`. |
+| `Giving up on a chunk after repeated failures` | The server is unreachable or erroring; report its message, do not loop. Rerun later: finished chunks are reused. |
+| `The server rejected the voice` | Rerun with `-- --voice am_onyx`. |
+
+Expected output of a successful run: `<outdir>/<slug>.m4b` (one file, one chapter marker per section; verify with `ffprobe -show_chapters`) and `<outdir>/<slug>_work/` with `words.csv`, `chapters/` and `convert.log`.
 
 ## Principles
 

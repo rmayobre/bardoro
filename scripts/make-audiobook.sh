@@ -26,12 +26,26 @@
 #   scripts/make-audiobook.sh "books/Arthas.epub" arthas -- --tempo 0.88 --voice am_onyx
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# find the skill folder even when this script is run through a symlink
+SRC="${BASH_SOURCE[0]}"
+while [ -L "$SRC" ]; do
+  DIR="$(cd -P "$(dirname "$SRC")" && pwd)"; SRC="$(readlink "$SRC")"
+  case "$SRC" in /*) ;; *) SRC="$DIR/$SRC" ;; esac
+done
+ROOT="$(cd -P "$(dirname "$SRC")/.." && pwd)"
 TOOLS="$ROOT/scripts"
 
+# a virtual environment inside the skill folder is used when present; python3 is preferred over python
+[ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
+PY="${PYTHON:-}"
+if [ -z "$PY" ]; then
+  if command -v python3 >/dev/null 2>&1; then PY=python3
+  elif command -v python >/dev/null 2>&1; then PY=python
+  else echo "Python 3.9+ was not found on PATH. Install it, then see: $TOOLS/check_setup.py" >&2; exit 1; fi
+fi
+
 if [ "${1:-}" = "--list-profiles" ]; then
-  [ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
-  exec python "$TOOLS/voice_profiles.py" list
+  exec "$PY" "$TOOLS/voice_profiles.py" list
 fi
 if [ $# -lt 2 ]; then sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 1; fi
 EPUB="$1"; SLUG="$2"; shift 2
@@ -50,18 +64,17 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
 # the epub is looked for as given, then in the current directory and ./books (with or without .epub)
 if [ ! -f "$EPUB" ]; then
-  FOUND="$(python "$TOOLS/resources.py" epub "$EPUB" || true)"
+  FOUND="$("$PY" "$TOOLS/resources.py" epub "$EPUB" || true)"
   if [ -z "$FOUND" ]; then
     echo "Epub not found: $EPUB (looked in $PWD and $PWD/books)" >&2
-    python "$TOOLS/resources.py" epubs | sed 's/^/  available: /' >&2
+    "$PY" "$TOOLS/resources.py" epubs | sed 's/^/  available: /' >&2
     exit 1
   fi
   EPUB="$FOUND"
 fi
-command -v ffmpeg >/dev/null || { echo "ffmpeg is required but not on PATH" >&2; exit 1; }
+
 
 OUT="$OUTDIR/${SLUG}_work"
 WORDS="$OUT/words.csv"
@@ -73,12 +86,12 @@ if [ ! -f "$WORDS" ] && [ -f "$OUT/names.csv" ]; then
 fi
 
 if [ "$LIST" -eq 1 ]; then
-  exec python "$TOOLS/epub_to_kokoro.py" "$EPUB" --list
+  exec "$PY" "$TOOLS/epub_to_kokoro.py" "$EPUB" --list
 fi
 
 # ---- Phase 1: find unrecognised words ----
 if [ ! -f "$WORDS" ] || [ "$REFRESH" -eq 1 ]; then
-  python "$TOOLS/find_unknown_words.py" "$EPUB" --out "$WORDS"
+  "$PY" "$TOOLS/find_unknown_words.py" "$EPUB" --out "$WORDS"
   echo
   echo "Wrote $WORDS"
   echo "Next: fill in the 'pronunciation' column (leave blank where a word already sounds right),"
@@ -97,14 +110,14 @@ for g in ${GLOSSARIES[@]+"${GLOSSARIES[@]}"}; do
   # a glossary is a path, or a name found in ./glossaries or the skill's glossaries/
   if [ -f "$g" ]; then PRON+=("$g")
   else
-    FOUND="$(python "$TOOLS/resources.py" glossary "$g" || true)"
+    FOUND="$("$PY" "$TOOLS/resources.py" glossary "$g" || true)"
     [ -n "$FOUND" ] || { echo "Glossary not found: $g (looked in ./glossaries and $ROOT/glossaries)" >&2; exit 1; }
     PRON+=("$FOUND")
   fi
 done
 PRON+=("$WORDS")
 
-exec python "$TOOLS/epub_to_kokoro.py" "$EPUB" \
+exec "$PY" "$TOOLS/epub_to_kokoro.py" "$EPUB" \
   --url "$URL" \
   --pronunciations "${PRON[@]}" \
   --work "$OUT/chapters" \

@@ -14,13 +14,40 @@ Command line (used by make-audiobook.sh):
   python resources.py where              show the folders searched
   python resources.py tests              print the folder pronunciation test clips are written to (OS temp)
 """
+import getpass
+import os
 import sys
 import tempfile
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 # Scratch audio from the pronunciation test scripts goes in the OS temp folder, so the OS cleans it up eventually.
-TEST_DIR = Path(tempfile.gettempdir()) / "bardoro" / "pronunciation_tests"
+# The folder name carries the user name so users of a shared machine do not collide or follow each other's symlinks.
+def _user():
+    try:
+        return "".join(c for c in getpass.getuser() if c.isalnum() or c in "-_") or "user"
+    except Exception:
+        return "user"
+
+
+TEST_ROOT = Path(tempfile.gettempdir()) / f"bardoro-{_user()}"
+TEST_DIR = TEST_ROOT / "pronunciation_tests"
+
+
+def make_dir(path):
+    """mkdir -p `path`. Inside TEST_ROOT the root is created private (0700) and must be a real folder we own."""
+    path = Path(path)
+    try:
+        inside = TEST_ROOT == path or TEST_ROOT in path.parents
+    except Exception:
+        inside = False
+    if inside:
+        if TEST_ROOT.is_symlink():
+            sys.exit(f"Refusing to use {TEST_ROOT}: it is a symbolic link. Remove it or pass --out-dir.")
+        TEST_ROOT.mkdir(mode=0o700, exist_ok=True)
+        if hasattr(os, "getuid") and TEST_ROOT.stat().st_uid != os.getuid():
+            sys.exit(f"Refusing to use {TEST_ROOT}: it belongs to another user. Pass --out-dir somewhere of your own.")
+    path.mkdir(parents=True, exist_ok=True)
 
 
 def search_dirs(kind):

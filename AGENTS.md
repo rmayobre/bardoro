@@ -28,6 +28,8 @@ scripts/
   review_pronunciations.py plays test clips two at a time and writes the chosen result back to the glossary
   play_audio.py            cross-platform audio player (ffplay, mpv, VLC, afplay, pw-play, ...)
   voice_profiles.py        voice profile loader/CLI (voices/*.json); shared by the converter and test scripts
+  deps.py                  startup checks: friendly errors for missing packages, ffmpeg and old Python
+  check_setup.py           verifies the install (Python 3.9+, packages, ffmpeg/ffprobe, optionally the server)
   resources.py             finds glossaries, voices and epubs in the working directory and the skill folder
   update_glossary.py       merges a book's pronunciations into a shared series glossary
   make-audiobook.sh        two-phase wrapper tying the above together
@@ -46,7 +48,8 @@ tests/                     smoke_test.sh + fake_kokoro_server.py (no real TTS or
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r scripts/requirements.txt      # also needs ffmpeg and ffprobe on PATH
+python -m pip install -r scripts/requirements.txt   # also needs ffmpeg and ffprobe on PATH
+python scripts/check_setup.py                        # verifies Python, packages and ffmpeg; exits 1 if anything is missing
 export KOKORO_URL=https://your-kokoro-server
 ```
 
@@ -101,6 +104,9 @@ unless the user asks, because full runs take a long time.
   it comes from `KOKORO_URL` or `--url`.
 - Do not commit epubs or generated audio (`.gitignore` covers them). Do commit `<slug>_work/words.csv` and
   glossaries; that is the reusable work.
+- Standard library first: add a third-party package only when it clearly saves a lot of code. Declare it in
+  `scripts/requirements.txt` AND `pyproject.toml` (lower bound plus `<next major`) and import it lazily through
+  `deps.require()` so a missing package gives an install hint, not a traceback. Keep code Python 3.9 compatible.
 - Prefer small, additive changes to `scripts/`; keep the scripts dependency-light (see `requirements.txt`) and make
   new options discoverable via `--help` and the module docstring.
 - The workspace an agent runs in may not be able to reach the user's Kokoro server. If it cannot, prepare everything

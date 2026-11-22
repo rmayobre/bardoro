@@ -1,0 +1,15 @@
+# Project metadata so `uv sync` / `uv run` and other tools can read the requirements. Bardoro is a skill made of
+# scripts, not an installable package: there is no build step. scripts/requirements.txt lists the same dependencies
+# for plain pip, and tests/smoke_test.sh checks that the two stay in sync.
+[project]
+name = "bardoro"
+version = "0.1.0"
+description = "Turn an epub into a chaptered .m4b audiobook through a Kokoro-FastAPI server, with fixed pronunciations for invented names."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = [
+    "ebooklib>=0.18,<1",
+    "beautifulsoup4>=4.12,<5",
+    "pyspellchecker>=0.8,<1",
+]

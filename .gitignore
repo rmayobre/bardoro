@@ -25,13 +25,21 @@
 
 # Directories
 books/*
-output/*
 glossaries/*
 !glossaries/warcraft.csv
 !glossaries/magic-the-gathering.csv
-*/__pycache__/*
 
 # Converted audiobooks and working files land in whatever folder the wrapper is run from
 *.m4b
 *_work/*
 !*_work/words.csv
+
+# Python environments and build artifacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/

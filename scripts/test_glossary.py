@@ -14,7 +14,7 @@ Usage:
   python test_glossary.py --list                           # show what would be tested, no server needed
   python test_glossary.py warcraft --max 20 --start 40     # entries 41-60 only
 
-Output (default <OS temp>/bardoro/pronunciation_tests/<glossary>/, which the OS cleans up eventually):
+Output (default <OS temp>/bardoro-<user>/pronunciation_tests/<glossary>/, which the OS cleans up eventually):
   <glossary>_review.flac   as written, pause, respelled, longer pause, next word...
   <glossary>_review.txt    mm:ss  word -> respelling   (open next to the audio)
   clips/                   one flac per clip; reused on reruns, a changed respelling gets a new clip
@@ -34,12 +34,13 @@ import sys
 import time
 from pathlib import Path
 
-from epub_to_kokoro import (add_voice_args, build_filter, concat_line, fmt_secs, load_pronunciations, log, probe,
+from epub_to_kokoro import (add_voice_args, build_filter, check_url, concat_line, fmt_secs, load_pronunciations, log, probe,
                             resolve_voice, run, synthesize)
 from test_pronunciation import DEFAULT_SENTENCE, slug
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import deps  # noqa: E402
 import resources  # noqa: E402
 DEFAULT_OUT_DIR = resources.TEST_DIR   # OS temp folder, cleaned up by the OS
 PAUSE_WITHIN = 0.6   # seconds between the as-written and respelled clip
@@ -100,7 +101,7 @@ def test_glossary(path, args):
 
     out = Path(args.out_dir) / path.stem
     clips = out / "clips"
-    clips.mkdir(parents=True, exist_ok=True)
+    resources.make_dir(clips)
     started = time.time()
 
     sequence, index, manifest = [], [], []  # clips in order; (word, respelling, clips per word); per-word clip paths
@@ -160,7 +161,7 @@ def main():
     add_voice_args(ap)
     ap.add_argument("--sentence", default=DEFAULT_SENTENCE)
     ap.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR),
-                    help="where the review files go (default: <OS temp>/bardoro/pronunciation_tests)")
+                    help="where the review files go (default: <OS temp>/bardoro-<user>/pronunciation_tests)")
     args = ap.parse_args()
     resolve_voice(args)
 
@@ -168,6 +169,10 @@ def main():
         sys.exit("--sentence must contain {word}")
     if not args.list and not args.url:
         sys.exit("No server URL. Pass --url or set KOKORO_URL.")
+    if not args.list:
+        args.url = check_url(args.url)
+        deps.need_binary("ffmpeg")
+        deps.need_binary("ffprobe")
 
     paths = [resolve_glossary(g) for g in args.glossaries] or [f for f, _ in resources.list_files("glossaries", "*.csv")]
     if not paths:

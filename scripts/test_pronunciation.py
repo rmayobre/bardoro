@@ -11,7 +11,7 @@ Usage:
   python test_pronunciation.py Tocasia --pronunciations words.csv --fx    # include the deep-voice post-processing
   python test_pronunciation.py Urza --sentence "{word} drew his sword."   # custom sentence, {word} is replaced
 
-Options: --url (default $KOKORO_URL), --profile NAME, --voice, --speed, --pitch, --tempo, --bass, --no-fx, --out-dir (default <OS temp>/bardoro/pronunciation_tests)
+Options: --url (default $KOKORO_URL), --profile NAME, --voice, --speed, --pitch, --tempo, --bass, --no-fx, --out-dir (default <OS temp>/bardoro-<user>/pronunciation_tests)
 Requires the same packages as epub_to_kokoro.py, plus a reachable Kokoro-FastAPI server.
 """
 import argparse
@@ -20,10 +20,11 @@ import re
 import sys
 from pathlib import Path
 
-from epub_to_kokoro import (add_voice_args, apply_pronunciations, build_filter, load_pronunciations, probe,
-                            resolve_voice, run, synthesize)
+from epub_to_kokoro import (add_voice_args, apply_pronunciations, build_filter, check_url, load_pronunciations,
+                            probe, resolve_voice, run, synthesize)
 
 DEFAULT_SENTENCE = "The name {word} echoed through the hall."
+import deps  # noqa: E402
 import resources  # noqa: E402
 
 DEFAULT_OUT_DIR = resources.TEST_DIR   # OS temp folder, cleaned up by the OS
@@ -42,12 +43,15 @@ def main():
     ap.add_argument("--sentence", default=DEFAULT_SENTENCE)
     ap.add_argument("--max", type=int, default=20, help="limit when testing a whole file (default 20)")
     ap.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR),
-                    help="where the clips go (default: <OS temp>/bardoro/pronunciation_tests)")
+                    help="where the clips go (default: <OS temp>/bardoro-<user>/pronunciation_tests)")
     args = ap.parse_args()
     resolve_voice(args, fx_default=False)  # clips are plain unless --fx or a profile asks for the processing
 
     if not args.url:
         sys.exit("No server URL. Pass --url or set KOKORO_URL.")
+    args.url = check_url(args.url)
+    deps.need_binary("ffmpeg")
+    deps.need_binary("ffprobe")
     if "{word}" not in args.sentence:
         sys.exit("--sentence must contain {word}")
 
@@ -60,7 +64,7 @@ def main():
         sys.exit("Nothing to test: give words, or a pronunciation file with filled-in entries.")
 
     out = Path(args.out_dir)
-    out.mkdir(parents=True, exist_ok=True)
+    resources.make_dir(out)
 
     for word in targets:
         variants = [("as_written", word)]

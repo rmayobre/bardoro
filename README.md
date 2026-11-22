@@ -29,16 +29,30 @@ epub_to_kokoro.py  ◄───────────────────�
 
 ## Requirements
 
-- Python 3
-- `ffmpeg` and `ffprobe` on your `PATH`
-- A running Kokoro-FastAPI server you can reach over HTTP(S)
+- **Python 3.9 or newer.** Tested on 3.11-3.13; the code is syntax-checked for 3.9 but not run there.
+- **Python packages** (installed with pip, see below): `ebooklib`, `beautifulsoup4`, `pyspellchecker`. Everything
+  else the scripts use is in the standard library. Version ranges are in `scripts/requirements.txt` and `pyproject.toml`.
+- **System programs, not installable with pip:** `ffmpeg` and `ffprobe` on your `PATH`
+  (`sudo apt install ffmpeg`, `brew install ffmpeg`, or `winget install ffmpeg`).
+- **A running Kokoro-FastAPI server** you can reach over HTTP(S). The scripts only talk to the URL you give them.
 
 ## Setup
 
+Use an isolated environment (`venv`, `uv` or `conda`) so nothing is installed into your global Python. One command
+installs everything and then verifies it (run it from this folder; on Windows use `.venv\Scripts\activate` instead of
+`. .venv/bin/activate`):
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r scripts/requirements.txt
+python3 -m venv .venv && . .venv/bin/activate && python -m pip install -r scripts/requirements.txt && python scripts/check_setup.py
 ```
+
+`check_setup.py` imports each package, runs `ffmpeg -version` and `ffprobe -version`, and exits non-zero with a line
+marked `MISSING` for anything that is not ready. It changes nothing. To also test your server (one GET request):
+`python scripts/check_setup.py --url https://your-kokoro-server`.
+
+With [uv](https://docs.astral.sh/uv/) you can skip the manual environment: the scripts carry inline dependency
+metadata, so `uv run scripts/check_setup.py` and `uv run scripts/find_unknown_words.py book.epub` fetch what they need.
+(`scripts/make-audiobook.sh` uses a `.venv` in this folder when there is one, else whichever `python3` is first on `PATH`.)
 
 Tell the tools where your server is once, instead of passing `--url` every time:
 
@@ -262,7 +276,7 @@ pronunciation files.
 | `--pitch X`, `--tempo X` | Used with `--fx` (same defaults as the converter). |
 | `--sentence TEXT` | Custom test sentence; `{word}` is replaced (default: "The name {word} echoed through the hall."). |
 | `--max N` | Limit when testing a whole file (default 20). |
-| `--out-dir DIR` | Where the test clips go (default: the OS temp folder, `<tmp>/bardoro/pronunciation_tests`). |
+| `--out-dir DIR` | Where the test clips go (default: the OS temp folder, `<tmp>/bardoro-<user>/pronunciation_tests`). |
 
 ### `scripts/test_glossary.py [GLOSSARY ...]`
 
@@ -279,7 +293,7 @@ respellings that sound wrong. Clips are reused on reruns; a changed respelling g
 | `--list` | Show what would be tested; no server needed. |
 | `--url`, `--voice`, `--speed`, `--pitch`, `--tempo`, `--sentence` | Same as `test_pronunciation.py`. |
 | `--no-fx` | Skip the deep-voice processing (it is on by default so clips match a real run). |
-| `--out-dir DIR` | Default: the OS temp folder, `<tmp>/bardoro/pronunciation_tests`; output is `<dir>/<glossary>/<glossary>_review.flac` and `.txt`. |
+| `--out-dir DIR` | Default: the OS temp folder, `<tmp>/bardoro-<user>/pronunciation_tests`; output is `<dir>/<glossary>/<glossary>_review.flac` and `.txt`. |
 
 ### `scripts/review_pronunciations.py [TEST_DIR ...]`
 
@@ -298,7 +312,7 @@ instead of re-rendering).
 
 | Flag | Meaning |
 |---|---|
-| `TEST_DIR` | A folder in `<tmp>/bardoro/pronunciation_tests/` or a glossary name. Default: all of them. |
+| `TEST_DIR` | A folder in `<tmp>/bardoro-<user>/pronunciation_tests/` or a glossary name. Default: all of them. |
 | `--shuffle` | Randomise which clip plays first (a blind test). `--shuffle-words` randomises the word order. |
 | `--show-respelling` | Print the respelling next to each word. |
 | `--redo` | Ask again about words already decided, including their clips in `reviewed/`. |
@@ -338,7 +352,8 @@ Merges a book's pronunciations, or a staging glossary, into a shared series glos
 
 ```
 SKILL.md          the Claude skill (entry point)
-scripts/            the scripts above, requirements.txt
+scripts/            the scripts above, requirements.txt, check_setup.py
+pyproject.toml    project metadata (python and package requirements) for uv and other tools
 glossaries/       shared pronunciations per series (tracked in git); ./glossaries in your working folder is searched first
 books/            your epubs (git-ignored)
 <slug>.m4b          written to the current directory (or --output-dir), git-ignored
@@ -350,7 +365,10 @@ tests/            smoke test and a fake Kokoro server
 
 | Problem | Fix |
 |---|---|
-| `No Kokoro server URL` | Set `KOKORO_URL` or pass `--url`. |
+| `No Kokoro server URL` | Set `KOKORO_URL` or pass `--url`. The URL must start with `http://` or `https://`. |
+| `Missing Python package ...` | Activate your virtual environment and run `python -m pip install -r scripts/requirements.txt`; `python scripts/check_setup.py` shows what is missing. |
+| `'ffmpeg' was not found on PATH` | Install ffmpeg (it includes ffprobe) and open a new terminal. |
+| `Could not read ... as an epub` | The file is not a valid epub or is DRM-protected. Remove the DRM or use another copy. |
 | Server rejects the voice | Use `--voice am_onyx` (plain voice instead of a blend). |
 | A word is still said wrong | Respell it in `words.csv`, check it with `test_pronunciation.py`, delete the affected chapter's `.flac`, rerun. |
 | Pace is too fast | Lower `--tempo` (for example 0.88). Keep the server `--speed` at 1.0. |
@@ -363,6 +381,8 @@ tests/            smoke test and a fake Kokoro server
 ```bash
 tests/smoke_test.sh        # runs everything against a fake server; should end with ALL OK
 ```
+
+Every script exits with status 0 on success and non-zero on any error, with the reason on stderr.
 
 ## Using it with Claude
 

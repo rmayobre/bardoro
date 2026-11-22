@@ -4,11 +4,11 @@ Listen to the pronunciation tests two clips at a time and pick the one that soun
 updated: the respelling is kept when you pick it, and the second column is left blank when you pick Kokoro's own
 pronunciation (blank means "leave Kokoro alone", so that word is not sent as a correction).
 
-Run scripts/test_glossary.py first; it writes the clips and a manifest.json into <OS temp>/bardoro/pronunciation_tests/<glossary>/ (run `python resources.py tests` to print it).
+Run scripts/test_glossary.py first; it writes the clips and a manifest.json into <OS temp>/bardoro-<user>/pronunciation_tests/<glossary>/ (run `python resources.py tests` to print it).
 
 Usage:
   python review_pronunciations.py                                   # every test folder under the test folder (OS temp)
-  python review_pronunciations.py /tmp/bardoro/pronunciation_tests/warcraft
+  python review_pronunciations.py /tmp/bardoro-<user>/pronunciation_tests/warcraft
   python review_pronunciations.py warcraft                          # a test folder by glossary name
   python review_pronunciations.py warcraft --shuffle                # randomise which clip plays first (blind test)
   python review_pronunciations.py warcraft --redo                   # ask again about words already decided

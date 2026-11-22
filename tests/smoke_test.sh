@@ -199,4 +199,35 @@ assert e("See Part II and Chapter IV.") == "See Part two and Chapter four."
 assert e("I and V and he said II was odd") == "I and V and he said II was odd"
 EOF4
 
+echo "== release hygiene: dependencies, setup check, failure modes"
+python - "$ROOT" <<'EOF5'
+import re, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+req = {re.split(r"[<>=]", l.split("#")[0].strip())[0].lower() for l in (root / "scripts/requirements.txt").read_text().splitlines() if l.split("#")[0].strip()}
+for l in (root / "scripts/requirements.txt").read_text().splitlines():
+    l = l.split("#")[0].strip()
+    assert not l or (">=" in l and "<" in l), f"requirement needs a lower and an upper bound: {l}"
+pyproj = (root / "pyproject.toml").read_text()
+block = re.search(r"^dependencies\s*=\s*\[(.*?)\]", pyproj, re.M | re.S).group(1)
+dep = {re.split(r"[<>=]", d)[0].lower() for d in re.findall(r'"([^"]+)"', block)}
+assert req == dep, f"requirements.txt {req} and pyproject.toml {dep} differ"
+src = "".join(f.read_text() for f in (root / "scripts").glob("*.py"))
+assert not re.search(r"^\s*(import|from) requests", src, re.M), "requests is no longer a dependency"
+assert not re.search(r"/Users/|/home/[a-z]", src), "hardcoded home path"
+EOF5
+python "$TMP/scripts/check_setup.py" > "$TMP/cs.out" || { echo "check_setup failed"; cat "$TMP/cs.out"; exit 1; }
+grep -q "All good" "$TMP/cs.out"
+python "$TMP/scripts/check_setup.py" --url "http://127.0.0.1:$PORT" | grep -q "Kokoro server answered" || { echo "check_setup --url failed"; exit 1; }
+python "$TMP/scripts/check_setup.py" --url "file:///etc/passwd" >/dev/null && { echo "file:// URL must be refused"; exit 1; } || true
+echo "not an epub" > "$TMP/bad.epub"
+python "$TMP/scripts/epub_to_kokoro.py" "$TMP/bad.epub" --list 2> "$TMP/bad.err" && { echo "bad epub must fail"; exit 1; } || true
+grep -q "Could not read" "$TMP/bad.err" && ! grep -q Traceback "$TMP/bad.err" || { echo "bad epub should give a one-line error"; exit 1; }
+python "$TMP/scripts/epub_to_kokoro.py" "$EPUB" --url "ftp://nope" --work "$TMP/never" 2> "$TMP/url.err" && { echo "ftp URL must fail"; exit 1; } || true
+grep -q "http://" "$TMP/url.err" || { echo "bad URL message missing"; exit 1; }
+python "$TMP/scripts/epub_to_kokoro.py" "$TMP/missing.epub" 2> "$TMP/miss.err" && { echo "missing epub must fail"; exit 1; } || true
+grep -q "Epub not found" "$TMP/miss.err"
+( cd "$TMP" && for m in deps resources voice_profiles epub_to_kokoro find_unknown_words test_glossary test_pronunciation review_pronunciations update_glossary; do
+    PYTHONPATH="$TMP/scripts" python -c "import $m" || exit 1; done )   # importing must not run anything
+
 echo "ALL OK"

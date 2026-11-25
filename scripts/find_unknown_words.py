@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["ebooklib>=0.18,<1", "beautifulsoup4>=4.12,<5", "pyspellchecker>=0.8,<1"]
+# ///
 """
 List the words in an epub that aren't in an English dictionary (mostly character
 and place names), so you can check how Kokoro pronounces them and add fixes to
@@ -12,7 +16,7 @@ Usage:
   python find_unknown_words.py book.epub --out words.py         # save a PRONUNCIATIONS dict template
   python find_unknown_words.py book.epub --out                  # save to <epub name>_unknown_words.txt
 
-Requires: pip install ebooklib beautifulsoup4 pyspellchecker
+Requires the packages in requirements.txt (ebooklib, beautifulsoup4, pyspellchecker); see the README for setup.
 """
 import argparse
 import csv
@@ -22,19 +26,19 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-from ebooklib import epub, ITEM_DOCUMENT
-from spellchecker import SpellChecker
+import deps
 
-from epub_to_kokoro import STRAY_RE  # watermark text such as OceanofPDF.com is not a word to check
+from epub_to_kokoro import STRAY_RE, read_epub  # watermark text such as OceanofPDF.com is not a word to check
 
 WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)*")
 
 
 def read_text(epub_path):
-    book = epub.read_epub(epub_path, options={"ignore_ncx": True})
+    ebooklib = deps.require("ebooklib")
+    BeautifulSoup = deps.require("bs4", "beautifulsoup4").BeautifulSoup
+    book = read_epub(epub_path)
     parts = []
-    for item in book.get_items_of_type(ITEM_DOCUMENT):
+    for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
         soup = BeautifulSoup(item.get_content(), "html.parser")
         parts.append(soup.get_text(" "))
     text = STRAY_RE.sub(" ", " ".join(parts))
@@ -64,8 +68,10 @@ def main():
                          "Give --out with no name to use <epub name>_unknown_words.txt")
     args = ap.parse_args()
 
+    if not Path(args.epub).is_file():
+        sys.exit(f"Epub not found: {args.epub}")
+    spell = deps.require("spellchecker", "pyspellchecker").SpellChecker()   # check before the slow epub read
     text = read_text(args.epub)
-    spell = SpellChecker()
 
     extra = set()
     if args.known:
@@ -101,6 +107,7 @@ def main():
 
     if args.out is not None:
         out = Path(args.out) if args.out else Path(f"{Path(args.epub).stem}_unknown_words.txt")
+        out.parent.mkdir(parents=True, exist_ok=True)
         ext = out.suffix.lower()
         if ext == ".csv":
             with open(out, "w", newline="", encoding="utf-8") as f:

@@ -7,14 +7,14 @@ deep-voice processing as a real run), then joins the clips into ONE review file 
 plus a timestamped index so you can jump to a word and note which ones sound wrong.
 
 Usage:
-  python test_glossary.py                                  # every glossaries/*.csv
+  python test_glossary.py                                  # every glossary in ./glossaries and the skill's glossaries/
   python test_glossary.py ../glossaries/warcraft.csv       # one glossary
   python test_glossary.py warcraft --words Jaina Muradin   # a glossary by name, only some words
   python test_glossary.py warcraft --respelled-only        # skip the "as written" clip of each pair
   python test_glossary.py --list                           # show what would be tested, no server needed
   python test_glossary.py warcraft --max 20 --start 40     # entries 41-60 only
 
-Output (default <repo>/output/pronunciation_tests/<glossary>/, which git ignores):
+Output (default <OS temp>/bardoro-<user>/pronunciation_tests/<glossary>/, which the OS cleans up eventually):
   <glossary>_review.flac   as written, pause, respelled, longer pause, next word...
   <glossary>_review.txt    mm:ss  word -> respelling   (open next to the audio)
   clips/                   one flac per clip; reused on reruns, a changed respelling gets a new clip
@@ -34,26 +34,25 @@ import sys
 import time
 from pathlib import Path
 
-from epub_to_kokoro import (add_voice_args, build_filter, concat_line, fmt_secs, load_pronunciations, log, probe,
+from epub_to_kokoro import (add_voice_args, build_filter, check_url, concat_line, fmt_secs, load_pronunciations, log, probe,
                             resolve_voice, run, synthesize)
 from test_pronunciation import DEFAULT_SENTENCE, slug
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-GLOSSARY_DIR = REPO_ROOT / "glossaries"
-DEFAULT_OUT_DIR = REPO_ROOT / "output" / "pronunciation_tests"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import deps  # noqa: E402
+import resources  # noqa: E402
+DEFAULT_OUT_DIR = resources.TEST_DIR   # OS temp folder, cleaned up by the OS
 PAUSE_WITHIN = 0.6   # seconds between the as-written and respelled clip
 PAUSE_BETWEEN = 1.4  # seconds between words
 
 
 def resolve_glossary(arg):
-    """Accept a path, or a bare name such as 'warcraft' (looked up in glossaries/)."""
-    p = Path(arg)
-    if p.exists():
-        return p
-    for cand in (GLOSSARY_DIR / arg, GLOSSARY_DIR / f"{arg}.csv"):
-        if cand.exists():
-            return cand
-    sys.exit(f"Glossary not found: {arg}")
+    """Accept a path, or a bare name such as 'warcraft' (looked up in ./glossaries, then the skill's glossaries/)."""
+    found = resources.find_glossary(arg)
+    if found:
+        return found
+    sys.exit(f"Glossary not found: {arg} (looked in {', '.join(str(d) for d in resources.search_dirs('glossaries'))})")
 
 
 def render_clip(text, dest, args):
@@ -102,7 +101,7 @@ def test_glossary(path, args):
 
     out = Path(args.out_dir) / path.stem
     clips = out / "clips"
-    clips.mkdir(parents=True, exist_ok=True)
+    resources.make_dir(clips)
     started = time.time()
 
     sequence, index, manifest = [], [], []  # clips in order; (word, respelling, clips per word); per-word clip paths
@@ -152,7 +151,7 @@ def test_glossary(path, args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("glossaries", nargs="*", metavar="GLOSSARY",
-                    help="glossary file or bare name (default: every glossaries/*.csv)")
+                    help="glossary file or bare name (default: every glossary in ./glossaries and the skill's glossaries/)")
     ap.add_argument("--words", nargs="+", metavar="WORD", help="only test these words")
     ap.add_argument("--max", type=int, default=0, help="test at most this many entries (default: all)")
     ap.add_argument("--start", type=int, default=0, help="skip the first N entries")
@@ -162,7 +161,7 @@ def main():
     add_voice_args(ap)
     ap.add_argument("--sentence", default=DEFAULT_SENTENCE)
     ap.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR),
-                    help="where the review files go (default: <repo>/output/pronunciation_tests)")
+                    help="where the review files go (default: <OS temp>/bardoro-<user>/pronunciation_tests)")
     args = ap.parse_args()
     resolve_voice(args)
 
@@ -170,15 +169,19 @@ def main():
         sys.exit("--sentence must contain {word}")
     if not args.list and not args.url:
         sys.exit("No server URL. Pass --url or set KOKORO_URL.")
+    if not args.list:
+        args.url = check_url(args.url)
+        deps.need_binary("ffmpeg")
+        deps.need_binary("ffprobe")
 
-    paths = [resolve_glossary(g) for g in args.glossaries] or sorted(GLOSSARY_DIR.glob("*.csv"))
+    paths = [resolve_glossary(g) for g in args.glossaries] or [f for f, _ in resources.list_files("glossaries", "*.csv")]
     if not paths:
-        sys.exit(f"No glossaries found in {GLOSSARY_DIR}")
+        sys.exit("No glossaries found in " + ", ".join(str(d) for d in resources.search_dirs("glossaries")))
     for p in paths:
         test_glossary(p, args)
     if not args.list:
         log(f"Listen to the *_review.flac files in {args.out_dir}/ with the .txt index beside them, or run "
-            "tools/review_pronunciations.py to pick the best clip for each word and update the glossary.")
+            "scripts/review_pronunciations.py to pick the best clip for each word and update the glossary.")
 
 
 if __name__ == "__main__":

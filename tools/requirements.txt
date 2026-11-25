@@ -1,4 +1,0 @@
-ebooklib
-beautifulsoup4
-requests
-pyspellchecker

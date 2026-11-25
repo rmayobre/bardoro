@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Two-phase wrapper around the audiobook tools.
+#
+#   Phase 1 (first run for a book): finds unrecognised words and writes <outdir>/<slug>_work/words.csv, then
+#           stops so you can fill in the pronunciation column.
+#   Phase 2 (run it again):         converts the epub with those pronunciations into <outdir>/<slug>.m4b.
+#
+# <outdir> is the current directory unless --output-dir is given. Working files (words.csv, chapters/, the log and
+# voice settings) are kept in <outdir>/<slug>_work/ so a later run can reuse them: delete one chapter_XX.flac there
+# and rerun to redo just that chapter.
+#
+# EPUB may be a bare file name: it is looked for in the current directory and ./books.
+# usage: scripts/make-audiobook.sh EPUB SLUG [options] [-- extra epub_to_kokoro.py args]
+#   --glossary NAME   glossary file, or a name found in ./glossaries or the skill's glossaries/ 
+#                     (repeatable), applied first; the book's words.csv always wins
+#   --url URL         Kokoro server URL (default: $KOKORO_URL)
+#   --output-dir DIR  where the .m4b and <slug>_work/ go (default: current directory)
+#   --list            only preview which sections would be read
+#   --refresh         regenerate words.csv even if it exists (overwrites it!)
+#   --profile NAME    voice profile from ./voices or the skill's voices/ (see --list-profiles); flags after -- override it
+#   --list-profiles   show the available voice profiles and exit
+#
+# examples:
+#   scripts/make-audiobook.sh "books/The Brothers' War - Jeff Grubb (1998).epub" brothers-war \
+#       --glossary glossaries/magic-the-gathering.csv
+#   scripts/make-audiobook.sh "books/Arthas.epub" arthas -- --tempo 0.88 --voice am_onyx
+set -euo pipefail
+
+# find the skill folder even when this script is run through a symlink
+SRC="${BASH_SOURCE[0]}"
+while [ -L "$SRC" ]; do
+  DIR="$(cd -P "$(dirname "$SRC")" && pwd)"; SRC="$(readlink "$SRC")"
+  case "$SRC" in /*) ;; *) SRC="$DIR/$SRC" ;; esac
+done
+ROOT="$(cd -P "$(dirname "$SRC")/.." && pwd)"
+TOOLS="$ROOT/scripts"
+
+# a virtual environment inside the skill folder is used when present; python3 is preferred over python
+[ -f "$ROOT/.venv/bin/activate" ] && source "$ROOT/.venv/bin/activate"
+PY="${PYTHON:-}"
+if [ -z "$PY" ]; then
+  if command -v python3 >/dev/null 2>&1; then PY=python3
+  elif command -v python >/dev/null 2>&1; then PY=python
+  else echo "Python 3.9+ was not found on PATH. Install it, then see: $TOOLS/check_setup.py" >&2; exit 1; fi
+fi
+
+if [ "${1:-}" = "--list-profiles" ]; then
+  exec "$PY" "$TOOLS/voice_profiles.py" list
+fi
+if [ $# -lt 2 ]; then sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 1; fi
+EPUB="$1"; SLUG="$2"; shift 2
+
+URL="${KOKORO_URL:-}"; GLOSSARIES=(); LIST=0; REFRESH=0; PROFILE=""; OUTDIR="$PWD"; EXTRA=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --glossary) GLOSSARIES+=("$2"); shift 2 ;;
+    --url)      URL="$2"; shift 2 ;;
+    --list)     LIST=1; shift ;;
+    --refresh)  REFRESH=1; shift ;;
+    --profile)  PROFILE="$2"; shift 2 ;;
+    --output-dir) OUTDIR="$2"; shift 2 ;;
+    --)         shift; EXTRA=("$@"); break ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+# the epub is looked for as given, then in the current directory and ./books (with or without .epub)
+if [ ! -f "$EPUB" ]; then
+  FOUND="$("$PY" "$TOOLS/resources.py" epub "$EPUB" || true)"
+  if [ -z "$FOUND" ]; then
+    echo "Epub not found: $EPUB (looked in $PWD and $PWD/books)" >&2
+    "$PY" "$TOOLS/resources.py" epubs | sed 's/^/  available: /' >&2
+    exit 1
+  fi
+  EPUB="$FOUND"
+fi
+
+
+OUT="$OUTDIR/${SLUG}_work"
+WORDS="$OUT/words.csv"
+mkdir -p "$OUT"
+# books started before the rename have names.csv: move it so their respellings keep working
+if [ ! -f "$WORDS" ] && [ -f "$OUT/names.csv" ]; then
+  mv "$OUT/names.csv" "$WORDS"
+  echo "Renamed $OUT/names.csv to words.csv"
+fi
+
+if [ "$LIST" -eq 1 ]; then
+  exec "$PY" "$TOOLS/epub_to_kokoro.py" "$EPUB" --list
+fi
+
+# ---- Phase 1: find unrecognised words ----
+if [ ! -f "$WORDS" ] || [ "$REFRESH" -eq 1 ]; then
+  "$PY" "$TOOLS/find_unknown_words.py" "$EPUB" --out "$WORDS"
+  echo
+  echo "Wrote $WORDS"
+  echo "Next: fill in the 'pronunciation' column (leave blank where a word already sounds right),"
+  echo "      optionally spot-check with scripts/test_pronunciation.py, then run this command again."
+  exit 0
+fi
+
+# ---- Phase 2: convert ----
+if [ -z "$URL" ]; then
+  echo "No Kokoro server URL. Set KOKORO_URL or pass --url https://your-server" >&2
+  exit 1
+fi
+
+PRON=()
+for g in ${GLOSSARIES[@]+"${GLOSSARIES[@]}"}; do
+  # a glossary is a path, or a name found in ./glossaries or the skill's glossaries/
+  if [ -f "$g" ]; then PRON+=("$g")
+  else
+    FOUND="$("$PY" "$TOOLS/resources.py" glossary "$g" || true)"
+    [ -n "$FOUND" ] || { echo "Glossary not found: $g (looked in ./glossaries and $ROOT/glossaries)" >&2; exit 1; }
+    PRON+=("$FOUND")
+  fi
+done
+PRON+=("$WORDS")
+
+exec "$PY" "$TOOLS/epub_to_kokoro.py" "$EPUB" \
+  --url "$URL" \
+  --pronunciations "${PRON[@]}" \
+  --work "$OUT/chapters" \
+  --out "$OUTDIR/$SLUG.m4b" \
+  ${PROFILE:+--profile "$PROFILE"} \
+  ${EXTRA[@]+"${EXTRA[@]}"}

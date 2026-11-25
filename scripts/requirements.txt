@@ -1,0 +1,7 @@
+# Runtime dependencies (Python 3.9+). Install inside a virtual environment:
+#   python3 -m venv .venv && . .venv/bin/activate && python -m pip install -r scripts/requirements.txt
+# Also needs ffmpeg and ffprobe on PATH (not installable with pip). Check everything with scripts/check_setup.py.
+# Lower bounds are versions the code relies on; upper bounds stop a future major release from breaking a fresh install.
+ebooklib>=0.18,<1            # read epub files
+beautifulsoup4>=4.12,<5      # strip HTML from epub chapters
+pyspellchecker>=0.8,<1       # find_unknown_words.py: dictionary of known English words

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["ebooklib>=0.18,<1", "beautifulsoup4>=4.12,<5"]
+# ///
 """
 Convert an epub into a single chaptered audiobook using a Kokoro-FastAPI server.
 
@@ -41,6 +45,7 @@ often each respelling was applied, retries, ffmpeg failures (full stderr goes to
 import argparse
 import ast
 import csv
+import http.client
 import json
 import os
 import re
@@ -50,9 +55,12 @@ import time
 from collections import Counter
 from pathlib import Path
 
-import requests
-from bs4 import BeautifulSoup
-from ebooklib import epub
+import urllib.error
+import urllib.request
+
+import deps
+
+deps.check_python()
 
 # voice defaults live in voice_profiles.py (re-exported here for the other tools)
 from voice_profiles import (BASS_GAIN_DB, DEFAULT_PITCH, DEFAULT_TEMPO, DEFAULT_VOICE, add_voice_args,  # noqa: F401
@@ -144,6 +152,16 @@ def clean_stray(text):
     return text if re.search(r"\w", text) else ""
 
 
+def read_epub(epub_path):
+    """Open an epub with ebooklib; a missing package or an unreadable file exits with a one-line message."""
+    epub = deps.require("ebooklib.epub", "ebooklib")
+    try:
+        return epub.read_epub(epub_path, options={"ignore_ncx": True})
+    except Exception as e:  # ebooklib raises assorted exceptions for bad zips, bad XML and so on
+        sys.exit(f"Could not read {epub_path} as an epub ({type(e).__name__}: {e}). "
+                 "Is it a valid, DRM-free .epub file?")
+
+
 def extract_sections(epub_path):
     """Return [(title, text)] in reading (spine) order, filtered to real story sections.
 
@@ -151,7 +169,8 @@ def extract_sections(epub_path):
     some publisher epubs) the title is taken from the table of contents, else from the image's alt text when that is
     a number ("Chapter 7"), else it is numbered in order. Such a title is also spoken at the start of the section.
     """
-    book = epub.read_epub(epub_path, options={"ignore_ncx": True})
+    BeautifulSoup = deps.require("bs4", "beautifulsoup4").BeautifulSoup
+    book = read_epub(epub_path)
     toc = toc_titles(book)
     sections, last_number = [], 0
     for idref, _linear in book.spine:
@@ -305,17 +324,38 @@ def chunk_text(text, limit=CHUNK_CHARS):
     return chunks
 
 
+def check_url(url):
+    """Return the server URL without a trailing slash; exit unless it is http(s) (urllib would also open file://)."""
+    url = (url or "").strip().rstrip("/")
+    if not url.lower().startswith(("http://", "https://")):
+        sys.exit(f"Invalid server URL {url!r}: it must start with http:// or https:// (set KOKORO_URL or pass --url).")
+    return url
+
+
+def post_json(url, payload, timeout):
+    """POST a JSON body with the standard library. Returns (status, body bytes); network errors raise OSError."""
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, resp.read()
+    except urllib.error.HTTPError as e:      # an HTTP error status is a response, not a connection failure
+        return e.code, e.read()
+    except http.client.HTTPException as e:   # e.g. a truncated body
+        raise OSError(str(e)) from e
+
+
 def synthesize(url, voice, speed, text, dest, retries=3, label="chunk"):
     payload = {"model": "kokoro", "input": text, "voice": voice,
                "response_format": "flac", "speed": speed}
     for attempt in range(1, retries + 1):
         try:
-            r = requests.post(f"{url}/v1/audio/speech", json=payload, timeout=900)
-            if r.status_code == 200 and r.content:
-                dest.write_bytes(r.content)
+            status, body = post_json(f"{check_url(url)}/v1/audio/speech", payload, timeout=900)
+            if status == 200 and body:
+                dest.write_bytes(body)
                 return
-            err = f"HTTP {r.status_code}: {r.text[:300]}"
-        except requests.RequestException as e:
+            err = f"HTTP {status}: {body[:300].decode('utf-8', 'replace')}"
+        except OSError as e:                 # URLError, timeouts and resets are all OSError subclasses
             err = str(e)
         log(f"    {label}: attempt {attempt}/{retries} failed: {err}")
         if r_is_voice_error(err):
@@ -425,6 +465,8 @@ def main():
         pron.update(loaded)
         log(f"Loaded {len(loaded)} pronunciations from {pfile}")
 
+    if not Path(args.epub).is_file():
+        sys.exit(f"Epub not found: {args.epub}")
     stem = Path(args.epub).stem
     out_path = Path(args.out) if args.out else Path(f"{stem}.m4b")
     safe_stem = re.sub(r"[^\w.-]+", "_", stem).strip("_")  # no spaces/apostrophes in folder names
@@ -439,7 +481,11 @@ def main():
     if args.list:
         return
 
-    work.mkdir(exist_ok=True)
+    args.url = check_url(args.url)
+    deps.need_binary("ffmpeg")
+    deps.need_binary("ffprobe")
+    work.mkdir(parents=True, exist_ok=True)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     global LOG_FILE
     LOG_FILE = Path(args.log) if args.log else work / "convert.log"
     settings = settings_of(args)

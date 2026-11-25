@@ -4,11 +4,11 @@ Listen to the pronunciation tests two clips at a time and pick the one that soun
 updated: the respelling is kept when you pick it, and the second column is left blank when you pick Kokoro's own
 pronunciation (blank means "leave Kokoro alone", so that word is not sent as a correction).
 
-Run tools/test_glossary.py first; it writes the clips and a manifest.json into output/pronunciation_tests/<glossary>/.
+Run scripts/test_glossary.py first; it writes the clips and a manifest.json into <OS temp>/bardoro-<user>/pronunciation_tests/<glossary>/ (run `python resources.py tests` to print it).
 
 Usage:
-  python review_pronunciations.py                                   # every test folder under output/pronunciation_tests
-  python review_pronunciations.py ../output/pronunciation_tests/warcraft
+  python review_pronunciations.py                                   # every test folder under the test folder (OS temp)
+  python review_pronunciations.py /tmp/bardoro-<user>/pronunciation_tests/warcraft
   python review_pronunciations.py warcraft                          # a test folder by glossary name
   python review_pronunciations.py warcraft --shuffle                # randomise which clip plays first (blind test)
   python review_pronunciations.py warcraft --redo                   # ask again about words already decided
@@ -24,7 +24,7 @@ called "reviewed" are ignored on later runs (they are not played again). Use --r
 
 Choices are saved to review_results.json after every word, so you can quit and resume later. The glossary is
 updated once every word has been decided, or earlier with --apply. Needs a terminal to answer in and an audio player
-(see play_audio.py --list-players). Note: a book's own output/<slug>/words.csv is applied after the glossary and
+(see play_audio.py --list-players). Note: a book's own <slug>_work/words.csv is applied after the glossary and
 still wins for that book, so edit it too if a book already carries the old respelling.
 """
 import argparse
@@ -38,7 +38,9 @@ from pathlib import Path
 from epub_to_kokoro import load_pronunciations
 from play_audio import play
 
-TESTS_DIR = Path(__file__).resolve().parent.parent / "output" / "pronunciation_tests"
+import resources  # noqa: E402
+
+TESTS_DIR = resources.TEST_DIR   # where test_glossary.py writes (OS temp folder)
 PAUSE_BETWEEN_CLIPS = 0.4
 REVIEWED = "reviewed"  # clips in a folder with this name are finished with and ignored
 
@@ -48,7 +50,7 @@ def find_test_dirs(targets):
     if not targets:
         dirs = sorted(p.parent for p in TESTS_DIR.glob("*/manifest.json"))
         if not dirs:
-            sys.exit(f"No pronunciation tests found in {TESTS_DIR}. Run tools/test_glossary.py first.")
+            sys.exit(f"No pronunciation tests found in {TESTS_DIR}. Run scripts/test_glossary.py first.")
         return dirs
     dirs = []
     for t in targets:
@@ -57,7 +59,7 @@ def find_test_dirs(targets):
                 dirs.append(cand)
                 break
         else:
-            sys.exit(f"No manifest.json in {t} (or {TESTS_DIR / t}). Run tools/test_glossary.py first.")
+            sys.exit(f"No manifest.json in {t} (or {TESTS_DIR / t}). Run scripts/test_glossary.py first.")
     return dirs
 
 
@@ -191,7 +193,7 @@ def review_dir(folder, args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("tests", nargs="*", metavar="TEST_DIR",
-                    help="test folder or glossary name (default: every folder in output/pronunciation_tests)")
+                    help="test folder or glossary name (default: every folder in the OS temp test folder)")
     ap.add_argument("--shuffle", action="store_true", help="randomise which clip plays first, per word (blind test)")
     ap.add_argument("--shuffle-words", action="store_true", help="randomise the order of the words")
     ap.add_argument("--show-respelling", action="store_true", help="print the respelling next to each word")

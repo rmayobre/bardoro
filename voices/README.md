@@ -1,17 +1,19 @@
 # Voice profiles
 
-One JSON file per voice. Pick one when making a book:
+One JSON file per voice. Profiles are read from `./voices` in your working directory and from this folder; a local
+profile with the same name wins. `voice_profiles.py new` saves to `./voices` (add `--shared` to save here).
+Pick one when making a book:
 
 ```bash
-tools/make-audiobook.sh "books/Some Book.epub" some-book --profile deep-narrator
-python tools/test_glossary.py warcraft --profile plain-onyx
-python tools/voice_profiles.py list          # see what is available
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --profile deep-narrator
+python scripts/test_glossary.py warcraft --profile plain-onyx
+python scripts/voice_profiles.py list          # see what is available
 ```
 
 Create your own by copying a file here, or with the helper:
 
 ```bash
-python tools/voice_profiles.py new gravel --from deep-narrator --voice am_michael --pitch 0.9 --description "Rougher"
+python scripts/voice_profiles.py new gravel --from deep-narrator --voice am_michael --pitch 0.9 --description "Rougher"
 ```
 
 Every key is optional; anything left out uses the built-in default.
@@ -29,5 +31,5 @@ Every key is optional; anything left out uses the built-in default.
 Settings are chosen in this order: a command-line flag (`--voice`, `--pitch`, `--tempo`, `--bass`, `--speed`,
 `--no-fx`), then the profile, then the built-in default. The file name (without `.json`) is the profile name.
 
-The settings used for a book are recorded in `output/<slug>/chapters/voice_settings.json`. If you rerun with
+The settings used for a book are recorded in `<slug>_work/chapters/voice_settings.json`. If you rerun with
 different settings, the converter warns you, because chapters already finished keep the old voice.

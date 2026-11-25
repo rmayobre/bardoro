@@ -3,7 +3,7 @@
 # Builds a tiny epub whose title has an apostrophe, runs both wrapper phases, and verifies that
 # pronunciations were applied, chapters were produced, and the .m4b has chapter markers.
 #
-# usage: tests/smoke_test.sh          (needs: python deps from tools/requirements.txt, ffmpeg, ffprobe)
+# usage: tests/smoke_test.sh          (needs: python deps from scripts/requirements.txt, ffmpeg, ffprobe)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,21 +30,21 @@ EPUB="$TMP/The Brothers' War - Smoke (2000).epub"
 python "$ROOT/tests/fake_kokoro_server.py" $PORT "$TMP/requests.log" & SERVER_PID=$!
 sleep 1
 export KOKORO_URL="http://127.0.0.1:$PORT"
-cd "$TMP"; mkdir -p tools output; cp -r "$ROOT/tools/." tools/   # run against a scratch copy of the repo layout
-W="$TMP/tools/make-audiobook.sh"
+cd "$TMP"; mkdir -p scripts; cp -r "$ROOT/scripts/." scripts/   # run against a scratch copy of the repo layout
+W="$TMP/scripts/make-audiobook.sh"
 
 echo "== phase 1: find unknown words"
 "$W" "$EPUB" smoke --glossary "$TMP/gloss.csv" 2>&1 | tail -3 || true
-test -f "$TMP/output/smoke/words.csv"
-grep -q "Urza" "$TMP/output/smoke/words.csv"
+test -f "$TMP/smoke_work/words.csv"
+grep -q "Urza" "$TMP/smoke_work/words.csv"
 
 printf 'word,pronunciation\nMishra,Mish-ruh\n' > "$TMP/gloss.csv"
-sed -i 's/^Urza,\([0-9]*\),$/Urza,\1,Er-zuh/' "$TMP/output/smoke/words.csv"
+sed -i 's/^Urza,\([0-9]*\),$/Urza,\1,Er-zuh/' "$TMP/smoke_work/words.csv"
 
 echo "== phase 2: convert"
 "$W" "$EPUB" smoke --glossary "$TMP/gloss.csv" -- --tempo 0.9
 
-M4B="$TMP/output/smoke/smoke.m4b"
+M4B="$TMP/smoke.m4b"
 test -s "$M4B"
 CH=$(ffprobe -v error -show_chapters -of csv=p=0 "$M4B" | wc -l)
 [ "$CH" -eq 3 ] || { echo "expected 3 chapters, got $CH"; exit 1; }
@@ -58,42 +58,62 @@ N1=$(wc -l < "$TMP/requests.log")
 N2=$(wc -l < "$TMP/requests.log")
 [ "$N1" -eq "$N2" ] || { echo "resume re-synthesized chapters"; exit 1; }
 
+echo "== --output-dir puts the .m4b and working files elsewhere"
+mkdir -p "$TMP/elsewhere"
+"$W" "$EPUB" other --output-dir "$TMP/elsewhere" >/dev/null 2>&1 || true
+test -f "$TMP/elsewhere/other_work/words.csv" && ! test -e "$TMP/other_work" || { echo "--output-dir not honoured"; exit 1; }
+
+echo "== epub, glossaries and voices are found in the working directory as well as the skill folder"
+mkdir -p "$TMP/proj/books" "$TMP/proj/glossaries" "$TMP/proj/voices" "$TMP/scripts/../glossaries"
+cp "$EPUB" "$TMP/proj/books/local.epub"
+printf 'word,pronunciation\nMishra,Local-ruh\n' > "$TMP/proj/glossaries/loc.csv"
+printf 'word,pronunciation\nMishra,Skill-ruh\nUrza,Er-zuh\n' > "$TMP/glossaries/shared.csv"
+mkdir -p "$TMP/voices"; printf '{"voice": "skill_voice"}\n' > "$TMP/voices/test.json"   # shared profile
+printf '{"voice": "local_voice"}\n' > "$TMP/proj/voices/test.json"          # same name as the skill's "test": local wins
+(cd "$TMP/proj" && "$W" local smoke2 --glossary loc --glossary shared >/dev/null 2>&1 || true)
+test -f "$TMP/proj/smoke2_work/words.csv" || { echo "epub not found by bare name in ./books"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/resources.py" glossary loc | grep -q "proj/glossaries/loc.csv") || { echo "local glossary not found"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/resources.py" glossary shared | grep -q "$TMP/glossaries/shared.csv") || { echo "skill glossary not found"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/voice_profiles.py" show test | grep -q local_voice) || { echo "local voice profile did not win"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/voice_profiles.py" list | grep -q "^test: voice local_voice") || { echo "voice list wrong"; exit 1; }
+(cd "$TMP/proj" && python "$TMP/scripts/test_glossary.py" --list | grep -q "shared") || { echo "test_glossary does not see skill glossaries"; exit 1; }
+
 echo "== a book started before the rename (names.csv) is migrated, not regenerated"
-mv "$TMP/output/smoke/words.csv" "$TMP/output/smoke/names.csv"
+mv "$TMP/smoke_work/words.csv" "$TMP/smoke_work/names.csv"
 "$W" "$EPUB" smoke --glossary "$TMP/gloss.csv" -- --tempo 0.9 > "$TMP/migrate.out"
 grep -q "Renamed" "$TMP/migrate.out"
-test -f "$TMP/output/smoke/words.csv" && ! test -f "$TMP/output/smoke/names.csv"
-grep -q "Urza,[0-9]*,Er-zuh" "$TMP/output/smoke/words.csv"
+test -f "$TMP/smoke_work/words.csv" && ! test -f "$TMP/smoke_work/names.csv"
+grep -q "Urza,[0-9]*,Er-zuh" "$TMP/smoke_work/words.csv"
 
 echo "== update_glossary"
-python "$TMP/tools/update_glossary.py" "$TMP/output/smoke/words.csv" "$TMP/gloss.csv" > "$TMP/glossary.out"
+python "$TMP/scripts/update_glossary.py" "$TMP/smoke_work/words.csv" "$TMP/gloss.csv" > "$TMP/glossary.out"
 head -1 "$TMP/glossary.out"
 grep -q "Urza,Er-zuh" "$TMP/gloss.csv"
 
 echo "== test_glossary (list, then render)"
-python "$TMP/tools/test_glossary.py" "$TMP/gloss.csv" --list > "$TMP/tl.out"
+python "$TMP/scripts/test_glossary.py" "$TMP/gloss.csv" --list > "$TMP/tl.out"
 grep -q "Mishra -> Mish-ruh" "$TMP/tl.out"
-python "$TMP/tools/test_glossary.py" "$TMP/gloss.csv" --out-dir "$TMP/gtests" >/dev/null
+python "$TMP/scripts/test_glossary.py" "$TMP/gloss.csv" --out-dir "$TMP/gtests" >/dev/null
 test -s "$TMP/gtests/gloss/gloss_review.flac"
 grep -q "00:00  Mishra -> Mish-ruh" "$TMP/gtests/gloss/gloss_review.txt"
 grep -q "Mish-ruh" "$TMP/requests.log"
 
 echo "== blank second column = keep Kokoro's pronunciation"
 printf 'Blankword,\nBareword\n' >> "$TMP/gloss.csv"
-python "$TMP/tools/test_glossary.py" "$TMP/gloss.csv" --out-dir "$TMP/gtests" > "$TMP/tg.out"
+python "$TMP/scripts/test_glossary.py" "$TMP/gloss.csv" --out-dir "$TMP/gtests" > "$TMP/tg.out"
 grep -q "2 blank entries skipped" "$TMP/tg.out"
-python "$TMP/tools/update_glossary.py" "$TMP/output/smoke/words.csv" "$TMP/gloss.csv" >/dev/null
+python "$TMP/scripts/update_glossary.py" "$TMP/smoke_work/words.csv" "$TMP/gloss.csv" >/dev/null
 grep -q "^Blankword,$" "$TMP/gloss.csv" || { echo "blank glossary row was lost by update_glossary"; exit 1; }
 
 echo "== play_audio"
 CLIP=$(ls "$TMP"/gtests/gloss/clips/*.flac | head -1)
-python "$TMP/tools/play_audio.py" --list-players >/dev/null
-AUDIO_PLAYER=true python "$TMP/tools/play_audio.py" "$CLIP"
-python "$TMP/tools/play_audio.py" "$TMP/missing.flac" 2>/dev/null && { echo "missing file should fail"; exit 1; } || true
+python "$TMP/scripts/play_audio.py" --list-players >/dev/null
+AUDIO_PLAYER=true python "$TMP/scripts/play_audio.py" "$CLIP"
+python "$TMP/scripts/play_audio.py" "$TMP/missing.flac" 2>/dev/null && { echo "missing file should fail"; exit 1; } || true
 
 echo "== review_pronunciations (r replays, 1 = clip 1 / native, 2 = clip 2 / respelled)"
 export AUDIO_PLAYER=true
-printf 'r\n1\n2\n' | python "$TMP/tools/review_pronunciations.py" "$TMP/gtests/gloss" >/dev/null
+printf 'r\n1\n2\n' | python "$TMP/scripts/review_pronunciations.py" "$TMP/gtests/gloss" >/dev/null
 grep -q "^Mishra,$" "$TMP/gloss.csv" || { echo "choosing clip 1 should blank Mishra"; exit 1; }
 grep -q "^Urza,Er-zuh$" "$TMP/gloss.csv" || { echo "choosing clip 2 should keep Urza's respelling"; exit 1; }
 grep -q "^Blankword,$" "$TMP/gloss.csv" || { echo "review dropped a blank row"; exit 1; }
@@ -101,17 +121,17 @@ grep -q "^Blankword,$" "$TMP/gloss.csv" || { echo "review dropped a blank row"; 
 G="$TMP/gtests/gloss/clips"
 [ -z "$(ls "$G"/*.flac 2>/dev/null)" ] || { echo "reviewed clips were not moved out of clips/"; exit 1; }
 [ "$(ls "$G"/reviewed/*.flac | wc -l)" -eq 4 ] || { echo "expected 4 clips in clips/reviewed/"; exit 1; }
-printf '' | python "$TMP/tools/review_pronunciations.py" "$TMP/gtests/gloss" > "$TMP/rv0.out"
+printf '' | python "$TMP/scripts/review_pronunciations.py" "$TMP/gtests/gloss" > "$TMP/rv0.out"
 grep -q "0 to review" "$TMP/rv0.out" || { echo "clips in reviewed/ should be ignored"; exit 1; }
-printf 'q\n' | python "$TMP/tools/review_pronunciations.py" "$TMP/gtests/gloss" --redo > "$TMP/rv.out"
+printf 'q\n' | python "$TMP/scripts/review_pronunciations.py" "$TMP/gtests/gloss" --redo > "$TMP/rv.out"
 grep -q "0 change(s)" "$TMP/rv.out"  # quitting a --redo keeps earlier decisions; nothing changes
 echo "== a changed respelling re-renders only its own clip; the as-written clip is reused from reviewed/"
 N1=$(wc -l < "$TMP/requests.log")
 sed -i 's/^Urza,Er-zuh$/Urza,Er-zah/' "$TMP/gloss.csv"
-python "$TMP/tools/test_glossary.py" "$TMP/gloss.csv" --out-dir "$TMP/gtests" > "$TMP/tg2.out"
+python "$TMP/scripts/test_glossary.py" "$TMP/gloss.csv" --out-dir "$TMP/gtests" > "$TMP/tg2.out"
 N2=$(wc -l < "$TMP/requests.log")
 [ $((N2 - N1)) -eq 1 ] || { echo "expected exactly 1 new request, got $((N2 - N1))"; exit 1; }
-printf '2\n' | python "$TMP/tools/review_pronunciations.py" "$TMP/gtests/gloss" > "$TMP/rv2.out"
+printf '2\n' | python "$TMP/scripts/review_pronunciations.py" "$TMP/gtests/gloss" > "$TMP/rv2.out"
 grep -q "^Urza,Er-zah$" "$TMP/gloss.csv" || { echo "new respelling choice was not written"; exit 1; }
 [ -z "$(ls "$G"/*.flac 2>/dev/null)" ] || { echo "new clip was not moved to reviewed/"; exit 1; }
 unset AUDIO_PLAYER
@@ -121,15 +141,15 @@ mkdir -p "$TMP/voices"
 cat > "$TMP/voices/test.json" <<'JSON'
 {"description": "smoke", "voice": "test_voice", "tempo": 0.8, "fx": false}
 JSON
-python "$TMP/tools/voice_profiles.py" list > "$TMP/vp.out"
+python "$TMP/scripts/voice_profiles.py" list > "$TMP/vp.out"
 grep -q "^test: voice test_voice" "$TMP/vp.out"
-python "$TMP/tools/voice_profiles.py" new made --from test --pitch 0.9 --voice made_voice >/dev/null
+python "$TMP/scripts/voice_profiles.py" new made --from test --pitch 0.9 --voice made_voice >/dev/null
 grep -q '"made_voice"' "$TMP/voices/made.json" && grep -q '"tempo": 0.8' "$TMP/voices/made.json"
-python "$TMP/tools/voice_profiles.py" new made >/dev/null 2>&1 && { echo "new must not overwrite without --force"; exit 1; } || true
+python "$TMP/scripts/voice_profiles.py" new made >/dev/null 2>&1 && { echo "new must not overwrite without --force"; exit 1; } || true
 echo '{"tempoo": 1}' > "$TMP/voices/bad.json"
-python "$TMP/tools/epub_to_kokoro.py" "$EPUB" --profile bad --list >/dev/null 2>&1 && { echo "unknown profile key should fail"; exit 1; } || true
+python "$TMP/scripts/epub_to_kokoro.py" "$EPUB" --profile bad --list >/dev/null 2>&1 && { echo "unknown profile key should fail"; exit 1; } || true
 rm "$TMP/voices/bad.json"
-CONV=(python "$TMP/tools/epub_to_kokoro.py" "$EPUB" --url "$KOKORO_URL")
+CONV=(python "$TMP/scripts/epub_to_kokoro.py" "$EPUB" --url "$KOKORO_URL")
 "${CONV[@]}" --profile test --work "$TMP/w2" --out "$TMP/w2.m4b" > "$TMP/p1.out"
 tail -1 "$TMP/requests.log" | grep -q '"voice": "test_voice"' || { echo "profile voice did not reach the server"; exit 1; }
 grep -q '"tempo": 0.8' "$TMP/w2/voice_settings.json" && grep -q '"fx": false' "$TMP/w2/voice_settings.json"
@@ -159,7 +179,7 @@ epub.write_epub(sys.argv[1] + "/imgbook.epub", b)
 EOF2
 python -I - "$TMP" <<'EOF3'
 import sys
-sys.path.insert(0, sys.argv[1] + "/tools")
+sys.path.insert(0, sys.argv[1] + "/scripts")
 from epub_to_kokoro import extract_sections
 secs = extract_sections(sys.argv[1] + "/imgbook.epub")
 titles = [t for t, _ in secs]
@@ -171,12 +191,43 @@ EOF3
 echo "== Roman numerals are spelled out"
 python -I - "$TMP" <<'EOF4'
 import sys
-sys.path.insert(0, sys.argv[1] + "/tools")
+sys.path.insert(0, sys.argv[1] + "/scripts")
 from epub_to_kokoro import expand_roman_numerals as e
 assert e("Terenas Menethil II ruled.") == "Terenas Menethil the Second ruled."
 assert e("Henry VIII and Menethil II's son") == "Henry the Eighth and Menethil the Second's son"
 assert e("See Part II and Chapter IV.") == "See Part two and Chapter four."
 assert e("I and V and he said II was odd") == "I and V and he said II was odd"
 EOF4
+
+echo "== release hygiene: dependencies, setup check, failure modes"
+python - "$ROOT" <<'EOF5'
+import re, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+req = {re.split(r"[<>=]", l.split("#")[0].strip())[0].lower() for l in (root / "scripts/requirements.txt").read_text().splitlines() if l.split("#")[0].strip()}
+for l in (root / "scripts/requirements.txt").read_text().splitlines():
+    l = l.split("#")[0].strip()
+    assert not l or (">=" in l and "<" in l), f"requirement needs a lower and an upper bound: {l}"
+pyproj = (root / "pyproject.toml").read_text()
+block = re.search(r"^dependencies\s*=\s*\[(.*?)\]", pyproj, re.M | re.S).group(1)
+dep = {re.split(r"[<>=]", d)[0].lower() for d in re.findall(r'"([^"]+)"', block)}
+assert req == dep, f"requirements.txt {req} and pyproject.toml {dep} differ"
+src = "".join(f.read_text() for f in (root / "scripts").glob("*.py"))
+assert not re.search(r"^\s*(import|from) requests", src, re.M), "requests is no longer a dependency"
+assert not re.search(r"/Users/|/home/[a-z]", src), "hardcoded home path"
+EOF5
+python "$TMP/scripts/check_setup.py" > "$TMP/cs.out" || { echo "check_setup failed"; cat "$TMP/cs.out"; exit 1; }
+grep -q "All good" "$TMP/cs.out"
+python "$TMP/scripts/check_setup.py" --url "http://127.0.0.1:$PORT" | grep -q "Kokoro server answered" || { echo "check_setup --url failed"; exit 1; }
+python "$TMP/scripts/check_setup.py" --url "file:///etc/passwd" >/dev/null && { echo "file:// URL must be refused"; exit 1; } || true
+echo "not an epub" > "$TMP/bad.epub"
+python "$TMP/scripts/epub_to_kokoro.py" "$TMP/bad.epub" --list 2> "$TMP/bad.err" && { echo "bad epub must fail"; exit 1; } || true
+grep -q "Could not read" "$TMP/bad.err" && ! grep -q Traceback "$TMP/bad.err" || { echo "bad epub should give a one-line error"; exit 1; }
+python "$TMP/scripts/epub_to_kokoro.py" "$EPUB" --url "ftp://nope" --work "$TMP/never" 2> "$TMP/url.err" && { echo "ftp URL must fail"; exit 1; } || true
+grep -q "http://" "$TMP/url.err" || { echo "bad URL message missing"; exit 1; }
+python "$TMP/scripts/epub_to_kokoro.py" "$TMP/missing.epub" 2> "$TMP/miss.err" && { echo "missing epub must fail"; exit 1; } || true
+grep -q "Epub not found" "$TMP/miss.err"
+( cd "$TMP" && for m in deps resources voice_profiles epub_to_kokoro find_unknown_words test_glossary test_pronunciation review_pronunciations update_glossary; do
+    PYTHONPATH="$TMP/scripts" python -c "import $m" || exit 1; done )   # importing must not run anything
 
 echo "ALL OK"

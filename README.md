@@ -24,21 +24,35 @@ book.epub
 epub_to_kokoro.py  ◄───────────────────────────  glossaries/<series>.csv + words.csv
    │  split into chapters → apply respellings → Kokoro server → ffmpeg deep-voice → chapter_XX.flac
    ▼
-output/<slug>/<slug>.m4b   (one file, chapter markers)
+<slug>.m4b   (one file, chapter markers)
 ```
 
 ## Requirements
 
-- Python 3
-- `ffmpeg` and `ffprobe` on your `PATH`
-- A running Kokoro-FastAPI server you can reach over HTTP(S)
+- **Python 3.9 or newer.** Tested on 3.11-3.13; the code is syntax-checked for 3.9 but not run there.
+- **Python packages** (installed with pip, see below): `ebooklib`, `beautifulsoup4`, `pyspellchecker`. Everything
+  else the scripts use is in the standard library. Version ranges are in `scripts/requirements.txt` and `pyproject.toml`.
+- **System programs, not installable with pip:** `ffmpeg` and `ffprobe` on your `PATH`
+  (`sudo apt install ffmpeg`, `brew install ffmpeg`, or `winget install ffmpeg`).
+- **A running Kokoro-FastAPI server** you can reach over HTTP(S). The scripts only talk to the URL you give them.
 
 ## Setup
 
+Use an isolated environment (`venv`, `uv` or `conda`) so nothing is installed into your global Python. One command
+installs everything and then verifies it (run it from this folder; on Windows use `.venv\Scripts\activate` instead of
+`. .venv/bin/activate`):
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r tools/requirements.txt
+python3 -m venv .venv && . .venv/bin/activate && python -m pip install -r scripts/requirements.txt && python scripts/check_setup.py
 ```
+
+`check_setup.py` imports each package, runs `ffmpeg -version` and `ffprobe -version`, and exits non-zero with a line
+marked `MISSING` for anything that is not ready. It changes nothing. To also test your server (one GET request):
+`python scripts/check_setup.py --url https://your-kokoro-server`.
+
+With [uv](https://docs.astral.sh/uv/) you can skip the manual environment: the scripts carry inline dependency
+metadata, so `uv run scripts/check_setup.py` and `uv run scripts/find_unknown_words.py book.epub` fetch what they need.
+(`scripts/make-audiobook.sh` uses a `.venv` in this folder when there is one, else whichever `python3` is first on `PATH`.)
 
 Tell the tools where your server is once, instead of passing `--url` every time:
 
@@ -49,36 +63,36 @@ source ~/.bashrc
 
 ## Making an audiobook
 
-The wrapper `tools/make-audiobook.sh` works in two steps. Run the same command twice.
+The wrapper `scripts/make-audiobook.sh` works in two steps. Run the same command twice.
 
 ```bash
 cp "/path/to/Some Book.epub" books/
 
-# Step 1: find unusual words and write output/some-book/words.csv, then stop
-tools/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/some-series.csv
+# Step 1: find unusual words and write some-book_work/words.csv, then stop
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/some-series.csv
 
 # Fill in the pronunciation column for any word that sounds wrong (leave the rest blank).
 # Then listen to a few before committing to the full run:
-python tools/test_pronunciation.py --pronunciations output/some-book/words.csv --max 10 --fx
+python scripts/test_pronunciation.py --pronunciations some-book_work/words.csv --max 10 --fx
 
 # Step 2: convert (run the exact same command again)
-tools/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/some-series.csv
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --glossary glossaries/some-series.csv
 ```
 
-The result is `output/some-book/some-book.m4b`. `--glossary` is optional and can be repeated; the book's own
+The result is `some-book.m4b` in the folder you ran the command from (pass `--output-dir DIR` to put it elsewhere), with the working files in `some-book_work/` beside it. Keep that folder: to fix a chapter, edit `words.csv`, delete the chapter's `.flac` and rerun. `--glossary` is optional and can be repeated; the book's own
 `words.csv` is applied last and wins on conflicts.
 
 Other things you can do with the wrapper:
 
 ```bash
-tools/make-audiobook.sh "books/Some Book.epub" some-book --list               # preview which sections would be read
-tools/make-audiobook.sh "books/Some Book.epub" some-book -- --tempo 0.88      # extra flags go to the converter after --
-tools/make-audiobook.sh "books/Some Book.epub" some-book --refresh            # regenerate words.csv (overwrites it!)
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --list               # preview which sections would be read
+scripts/make-audiobook.sh "books/Some Book.epub" some-book -- --tempo 0.88      # extra flags go to the converter after --
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --refresh            # regenerate words.csv (overwrites it!)
 ```
 
 ### Fixing pronunciations
 
-Open `output/<slug>/words.csv`:
+Open `<slug>_work/words.csv`:
 
 ```csv
 word,count,pronunciation
@@ -96,11 +110,11 @@ right, since blank rows are ignored.
 - When you finish a book, save its pronunciations for the next one in the series:
 
   ```bash
-  python tools/update_glossary.py output/some-book/words.csv glossaries/some-series.csv
+  python scripts/update_glossary.py some-book_work/words.csv glossaries/some-series.csv
   ```
 
 New pronunciations only affect chapters generated afterwards. To redo a chapter, delete its
-`output/<slug>/chapters/chapter_XX.flac` and rerun.
+`<slug>_work/chapters/chapter_XX.flac` and rerun.
 
 ### Maintaining one glossary for a series
 
@@ -111,27 +125,27 @@ reviewed by ear, and only then are merged into the main one. This is the workflo
 
 ```bash
 # 1. First book of the series: build the main glossary from its filled-in words.csv, then check it by ear
-python tools/update_glossary.py output/brothers-war/words.csv glossaries/magic-the-gathering.csv
-python tools/test_glossary.py magic-the-gathering
-python tools/review_pronunciations.py magic-the-gathering     # 1 / 2 / r; a pick of clip 1 leaves the row blank
+python scripts/update_glossary.py brothers-war_work/words.csv glossaries/magic-the-gathering.csv
+python scripts/test_glossary.py magic-the-gathering
+python scripts/review_pronunciations.py magic-the-gathering     # 1 / 2 / r; a pick of clip 1 leaves the row blank
 
 # 2. Next book: find its words. Words the main glossary already covers can stay blank in words.csv;
 #    fill in only the new names. Then save those as a staging glossary.
-tools/make-audiobook.sh "books/Bloodlines.epub" bloodlines --glossary glossaries/magic-the-gathering.csv
-python tools/update_glossary.py output/bloodlines/words.csv glossaries/magic-the-gathering-bloodlines.csv
+scripts/make-audiobook.sh "books/Bloodlines.epub" bloodlines --glossary glossaries/magic-the-gathering.csv
+python scripts/update_glossary.py bloodlines_work/words.csv glossaries/magic-the-gathering-bloodlines.csv
 
 # 3. Review the staging glossary by ear (it is updated as you choose)
-python tools/test_glossary.py magic-the-gathering-bloodlines
-python tools/review_pronunciations.py magic-the-gathering-bloodlines
+python scripts/test_glossary.py magic-the-gathering-bloodlines
+python scripts/review_pronunciations.py magic-the-gathering-bloodlines
 
 # 4. Convert with both glossaries: main first, then the staging one
-tools/make-audiobook.sh "books/Bloodlines.epub" bloodlines \
+scripts/make-audiobook.sh "books/Bloodlines.epub" bloodlines \
   --glossary glossaries/magic-the-gathering.csv \
   --glossary glossaries/magic-the-gathering-bloodlines.csv
 
 # 5. Happy with it? Preview, then merge the staging glossary into the main one
-python tools/update_glossary.py glossaries/magic-the-gathering-bloodlines.csv glossaries/magic-the-gathering.csv --dry-run
-python tools/update_glossary.py glossaries/magic-the-gathering-bloodlines.csv glossaries/magic-the-gathering.csv
+python scripts/update_glossary.py glossaries/magic-the-gathering-bloodlines.csv glossaries/magic-the-gathering.csv --dry-run
+python scripts/update_glossary.py glossaries/magic-the-gathering-bloodlines.csv glossaries/magic-the-gathering.csv
 ```
 
 Repeat steps 2 to 5 for each further book. Because every staging glossary only holds words the main one lacks,
@@ -156,15 +170,15 @@ it in the main glossary, add the row by hand (`Karn,`), otherwise a later book t
 A voice profile is a small JSON file in `voices/` holding a voice and its settings. Choose one per book:
 
 ```bash
-python tools/voice_profiles.py list                                              # what is available
-tools/make-audiobook.sh "books/Some Book.epub" some-book --profile deep-narrator
-python tools/voice_profiles.py new gravel --from deep-narrator --voice am_michael --pitch 0.9
+python scripts/voice_profiles.py list                                              # what is available
+scripts/make-audiobook.sh "books/Some Book.epub" some-book --profile deep-narrator
+python scripts/voice_profiles.py new gravel --from deep-narrator --voice am_michael --pitch 0.9
 ```
 
 Profiles also work with `test_pronunciation.py` and `test_glossary.py` (`--profile NAME`). Settings are chosen in this
 order: a command-line flag, then the profile, then the built-in default. Shipped profiles: `deep-narrator` (the
 default sound) and `plain-onyx` (no post-processing). See `voices/README.md` for the file format. The settings used
-for a book are saved in `output/<slug>/chapters/voice_settings.json`, and the converter warns if a rerun uses different
+for a book are saved in `<slug>_work/chapters/voice_settings.json`, and the converter warns if a rerun uses different
 ones, since finished chapters keep the old voice.
 
 ### Voice and pace
@@ -179,7 +193,7 @@ Defaults: voice blend `am_onyx(4)+am_adam(1)`, pitch `0.94`, tempo `0.90`, bass 
 | `--bass 4` | Low-shelf bass boost in dB. |
 | `--no-fx` | Skip the ffmpeg deep-voice processing. |
 | `--speed 1.0` | Server-side speed. Leave it near 1.0 and use `--tempo` to slow things down. |
-| `--log FILE` | Where to write the progress log. Default: `output/<slug>/chapters/convert.log` (one per book, appended on reruns). |
+| `--log FILE` | Where to write the progress log. Default: `<slug>_work/chapters/convert.log` (one per book, appended on reruns). |
 
 ### Which sections are read
 
@@ -201,7 +215,7 @@ spoken at the start of the section.
 
 Every script supports `--help`. All flags are listed here.
 
-### `tools/make-audiobook.sh EPUB SLUG [options] [-- converter flags]`
+### `scripts/make-audiobook.sh EPUB SLUG [options] [-- converter flags]`
 
 Two-step wrapper: finds words on the first run, converts on the second.
 
@@ -215,7 +229,7 @@ Two-step wrapper: finds words on the first run, converts on the second.
 | `--list-profiles` | Show the available voice profiles and exit. |
 | `-- ...` | Everything after `--` goes to `epub_to_kokoro.py`. |
 
-### `tools/find_unknown_words.py EPUB`
+### `scripts/find_unknown_words.py EPUB`
 
 Lists words that are not in an English dictionary (mostly names and places). The result, `words.csv`, holds every unrecognised word (names, invented terms, dialect and the odd fragment), not only names. Books started before the rename have `names.csv`; `make-audiobook.sh` renames it to `words.csv` automatically.
 
@@ -226,7 +240,7 @@ Lists words that are not in an English dictionary (mostly names and places). The
 | `--top N` | How many words to print (default 80). |
 | `--known FILE` | Text file of extra words to treat as known, one per line. |
 
-### `tools/epub_to_kokoro.py EPUB`
+### `scripts/epub_to_kokoro.py EPUB`
 
 Converts an epub to a chaptered `.m4b`. Resumable.
 
@@ -247,7 +261,7 @@ Converts an epub to a chaptered `.m4b`. Resumable.
 | `--log FILE` | Progress log to append to. Default: `<work>/convert.log`. |
 | `--list` | Only list the sections that would be read. |
 
-### `tools/test_pronunciation.py [WORD ...]`
+### `scripts/test_pronunciation.py [WORD ...]`
 
 Saves each word as written and respelled so you can compare. With no words, tests the filled-in entries of the
 pronunciation files.
@@ -262,9 +276,9 @@ pronunciation files.
 | `--pitch X`, `--tempo X` | Used with `--fx` (same defaults as the converter). |
 | `--sentence TEXT` | Custom test sentence; `{word}` is replaced (default: "The name {word} echoed through the hall."). |
 | `--max N` | Limit when testing a whole file (default 20). |
-| `--out-dir DIR` | Where the test clips go (default `output/pronunciation_tests`, git-ignored). |
+| `--out-dir DIR` | Where the test clips go (default: the OS temp folder, `<tmp>/bardoro-<user>/pronunciation_tests`). |
 
-### `tools/test_glossary.py [GLOSSARY ...]`
+### `scripts/test_glossary.py [GLOSSARY ...]`
 
 Renders every entry of the glossaries (default: all of `glossaries/*.csv`) as written and respelled, and joins the
 clips into one review file per glossary with a timestamped index, so you can listen straight through and note the
@@ -279,9 +293,9 @@ respellings that sound wrong. Clips are reused on reruns; a changed respelling g
 | `--list` | Show what would be tested; no server needed. |
 | `--url`, `--voice`, `--speed`, `--pitch`, `--tempo`, `--sentence` | Same as `test_pronunciation.py`. |
 | `--no-fx` | Skip the deep-voice processing (it is on by default so clips match a real run). |
-| `--out-dir DIR` | Default `output/pronunciation_tests` (git-ignored); output is `<dir>/<glossary>/<glossary>_review.flac` and `.txt`. |
+| `--out-dir DIR` | Default: the OS temp folder, `<tmp>/bardoro-<user>/pronunciation_tests`; output is `<dir>/<glossary>/<glossary>_review.flac` and `.txt`. |
 
-### `tools/review_pronunciations.py [TEST_DIR ...]`
+### `scripts/review_pronunciations.py [TEST_DIR ...]`
 
 Plays the clips made by `test_glossary.py` two at a time (clip 1 is Kokoro's own pronunciation, clip 2 is the
 respelling) and asks which sounds best. When every word is decided, the glossary is updated: the respelling is kept
@@ -298,17 +312,17 @@ instead of re-rendering).
 
 | Flag | Meaning |
 |---|---|
-| `TEST_DIR` | A folder in `output/pronunciation_tests/` or a glossary name. Default: all of them. |
+| `TEST_DIR` | A folder in `<tmp>/bardoro-<user>/pronunciation_tests/` or a glossary name. Default: all of them. |
 | `--shuffle` | Randomise which clip plays first (a blind test). `--shuffle-words` randomises the word order. |
 | `--show-respelling` | Print the respelling next to each word. |
 | `--redo` | Ask again about words already decided, including their clips in `reviewed/`. |
 | `--apply` | Write the decisions made so far without asking more. |
 | `--dry-run` | Show the glossary changes without writing anything: no glossary edit, no saved choices, no clips moved. |
 
-A book's own `output/<slug>/words.csv` is applied after the glossary and still wins, so edit it too if a book already
+A book's own `<slug>_work/words.csv` is applied after the glossary and still wins, so edit it too if a book already
 carries an old respelling.
 
-### `tools/play_audio.py FILE`
+### `scripts/play_audio.py FILE`
 
 Plays an audio file on Linux, macOS or Windows with whatever is installed (ffplay, mpv, VLC, afplay, pw-play, paplay,
 sox, aplay, Windows SoundPlayer), converting to wav with ffmpeg when a player needs it. Verified on Linux only.
@@ -319,13 +333,13 @@ sox, aplay, Windows SoundPlayer), converting to wav with ffmpeg when a player ne
 | `--list-players` | Show the players found on this machine. |
 | `AUDIO_PLAYER` (env) | Force a player command, for example `AUDIO_PLAYER="mpv --no-video"`. |
 
-### `tools/voice_profiles.py {list,show,new}`
+### `scripts/voice_profiles.py {list,show,new}`
 
 Manages `voices/*.json`: `list` shows every profile, `show NAME` prints one, and `new NAME` creates one
 (`--from PROFILE`, `--description`, `--voice`, `--speed`, `--pitch`, `--tempo`, `--bass-db`, `--fx on|off`,
 `--force` to overwrite).
 
-### `tools/update_glossary.py SOURCE GLOSSARY`
+### `scripts/update_glossary.py SOURCE GLOSSARY`
 
 Merges a book's pronunciations, or a staging glossary, into a shared series glossary. Only filled-in entries are copied. Existing entries in the target win unless `--overwrite`, and every clash is printed. Blank rows already in the target are kept (they mean Kokoro's own pronunciation was chosen). See "Maintaining one glossary for a series" for the full ordering rules.
 
@@ -337,10 +351,13 @@ Merges a book's pronunciations, or a staging glossary, into a shared series glos
 ## Project layout
 
 ```
-tools/            the scripts above, requirements.txt, and a copy of the Claude skill (skill/SKILL.md)
-glossaries/       shared pronunciations per series (tracked in git)
+SKILL.md          the Claude skill (entry point)
+scripts/            the scripts above, requirements.txt, check_setup.py
+pyproject.toml    project metadata (python and package requirements) for uv and other tools
+glossaries/       shared pronunciations per series (tracked in git); ./glossaries in your working folder is searched first
 books/            your epubs (git-ignored)
-output/<slug>/    words.csv (tracked), chapters/ and the finished .m4b (git-ignored)
+<slug>.m4b          written to the current directory (or --output-dir), git-ignored
+<slug>_work/      words.csv (tracked), chapters/ and logs, next to the .m4b (keep it to redo chapters)
 tests/            smoke test and a fake Kokoro server
 ```
 
@@ -348,7 +365,10 @@ tests/            smoke test and a fake Kokoro server
 
 | Problem | Fix |
 |---|---|
-| `No Kokoro server URL` | Set `KOKORO_URL` or pass `--url`. |
+| `No Kokoro server URL` | Set `KOKORO_URL` or pass `--url`. The URL must start with `http://` or `https://`. |
+| `Missing Python package ...` | Activate your virtual environment and run `python -m pip install -r scripts/requirements.txt`; `python scripts/check_setup.py` shows what is missing. |
+| `'ffmpeg' was not found on PATH` | Install ffmpeg (it includes ffprobe) and open a new terminal. |
+| `Could not read ... as an epub` | The file is not a valid epub or is DRM-protected. Remove the DRM or use another copy. |
 | Server rejects the voice | Use `--voice am_onyx` (plain voice instead of a blend). |
 | A word is still said wrong | Respell it in `words.csv`, check it with `test_pronunciation.py`, delete the affected chapter's `.flac`, rerun. |
 | Pace is too fast | Lower `--tempo` (for example 0.88). Keep the server `--speed` at 1.0. |
@@ -362,11 +382,13 @@ tests/            smoke test and a fake Kokoro server
 tests/smoke_test.sh        # runs everything against a fake server; should end with ALL OK
 ```
 
+Every script exits with status 0 on success and non-zero on any error, with the reason on stderr.
+
 ## Using it with Claude
 
-`tools/skill/SKILL.md` is a Claude skill that runs this whole workflow for you: it asks about the book and your
+`SKILL.md` (in the repo root) is a Claude skill that runs this whole workflow for you: it asks about the book and your
 server, finds the unusual words, researches pronunciations using what you tell it about the book, checks them with
-you, then runs the conversion. Save it in Claude from that file.
+you, then runs the conversion. This directory is a standard skill folder: copy or symlink it to `~/.claude/skills/bardoro`, or zip it and upload it in Claude.
 
 ## Notes
 

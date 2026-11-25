@@ -4,7 +4,7 @@ Merge a finished book's pronunciations into a shared series glossary so the next
 universe starts with them already filled in.
 
 Usage:
-  python update_glossary.py ../output/brothers-war/words.csv ../glossaries/magic-the-gathering.csv
+  python update_glossary.py ../brothers-war_work/words.csv ../glossaries/magic-the-gathering.csv
   python update_glossary.py words.csv glossary.csv --dry-run      # show what would change
   python update_glossary.py words.csv glossary.csv --overwrite     # let the book's entries replace existing ones
 
@@ -19,17 +19,24 @@ import sys
 from pathlib import Path
 
 from epub_to_kokoro import load_pronunciations
+import resources
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("source", help="book pronunciation file (.csv/.json/.py/.txt)")
-    ap.add_argument("glossary", help="glossary CSV to create or update")
+    ap.add_argument("glossary", help="glossary CSV (or bare name, found in ./glossaries or the skill's glossaries/) to create or update")
     ap.add_argument("--overwrite", action="store_true", help="replace existing glossary entries that differ")
     ap.add_argument("--dry-run", action="store_true", help="print the changes without writing")
     args = ap.parse_args()
 
     gloss_path = Path(args.glossary)
+    if not gloss_path.exists():
+        found = resources.find_glossary(args.glossary)
+        if found:                      # a bare name such as "warcraft" finds ./glossaries or the skill's glossaries/
+            gloss_path = found
+        elif gloss_path.parent == Path(".") and gloss_path.suffix == "":
+            gloss_path = Path("glossaries") / f"{args.glossary}.csv"   # a new glossary by name goes in ./glossaries
     source = load_pronunciations(args.source)
     # keep blank rows: they record "reviewed, Kokoro's own pronunciation is fine" and must survive a rewrite
     glossary = load_pronunciations(gloss_path, keep_blank=True) if gloss_path.exists() else {}
